@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/auth_screen.dart';
 
-void main() => runApp(HushApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: 'YOUR_SUPABASE_URL',
+    anonKey: 'YOUR_SUPABASE_ANON_KEY',
+  );
+  runApp(HushApp());
+}
 
 class HushApp extends StatelessWidget {
   @override
@@ -33,6 +42,17 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkSetupStatus() async {
+    // Check Supabase session
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
+      // Not logged in
+      await Future.delayed(Duration(seconds: 1));
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => AuthScreen()),
+      );
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     final hasHousehold = prefs.getBool('hasHousehold') ?? false;
     final householdName = prefs.getString('householdName') ?? '';
