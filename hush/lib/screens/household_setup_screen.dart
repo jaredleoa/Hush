@@ -1,13 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-// This would be imported from your main.dart in the real app
-class HushHomePage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(body: Center(child: Text('Home Page')));
-  }
-}
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HouseholdSetupScreen extends StatefulWidget {
   @override
@@ -40,11 +33,13 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
 
     setState(() => _isJoining = false);
 
-    // Navigate to home
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => HushHomePage()),
-    );
+    // Set household preference to true
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasHousehold', true);
+    await prefs.setString('householdName', 'My Household'); // Placeholder
+
+    // Navigate back to main app - this will trigger the splash screen logic
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
   void _createHousehold() async {
@@ -60,11 +55,13 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
 
     setState(() => _isCreating = false);
 
-    // Navigate to home
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => HushHomePage()),
-    );
+    // Set household preference to true
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasHousehold', true);
+    await prefs.setString('householdName', _householdNameController.text);
+
+    // Navigate back to main app - this will trigger the splash screen logic
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
   void _showError(String message) {

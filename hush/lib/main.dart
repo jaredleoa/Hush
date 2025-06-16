@@ -1,193 +1,464 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart';
+import 'screens/household_setup_screen.dart';
 
-import 'package:hush/config/supabase_config.dart';
-import 'package:hush/services/auth_service.dart';
-import 'package:hush/services/household_service.dart';
-import 'package:hush/services/profile_service.dart';
-import 'package:hush/services/app_state_service.dart';
-import 'package:hush/services/household_member_service.dart';
-import 'package:hush/models/profile_model.dart';
-import 'package:hush/models/household_model.dart';
-import 'package:hush/models/household_member_model.dart';
-import 'package:hush/screens/auth/login_screen.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  try {
-    // Initialize Supabase
-    await Supabase.initialize(
-      url: SupabaseConfig.supabaseUrl,
-      anonKey: SupabaseConfig.supabaseAnonKey,
-      debug: true, // Set to false in production
-    );
-    
-    runApp(const HushApp());
-  } catch (error) {
-    debugPrint('Error initializing app: $error');
-    // Show some kind of error screen in production
-  }
-}
+void main() => runApp(HushApp());
 
 class HushApp extends StatelessWidget {
-  const HushApp({Key? key}) : super(key: key);
-
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        Provider<AuthService>(
-          create: (_) => AuthService(),
-        ),
-        Provider<ProfileService>(
-          create: (_) => ProfileService(),
-        ),
-        Provider<HouseholdService>(
-          create: (_) => HouseholdService(),
-        ),
-        Provider<HouseholdMemberService>(
-          create: (_) => HouseholdMemberService(),
-        ),
-        ChangeNotifierProvider<AppStateService>(
-          create: (_) => AppStateService(),
-        ),
-      ],
-      child: MaterialApp(
-        title: 'Hush',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primarySwatch: Colors.indigo,
-          scaffoldBackgroundColor: Colors.grey[50],
-        ),
-        home: const SplashScreen(), // Start with splash to check auth status
+    return MaterialApp(
+      title: 'Hush',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.indigo,
+        scaffoldBackgroundColor: Colors.grey[50],
       ),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => SplashScreen(),
+        '/auth': (context) => AuthScreen(),
+        '/setup': (context) => HouseholdSetupScreen(),
+        '/home': (context) => HushHomePage(),
+      },
     );
   }
 }
 
-// Splash screen to check authentication status
+// Splash screen to check if user is logged in and has household
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
-  
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  _SplashScreenState createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  late AppStateService _appStateService;
-  late AuthService _authService;
-  
   @override
   void initState() {
     super.initState();
-    _appStateService = Provider.of<AppStateService>(context, listen: false);
-    _authService = Provider.of<AuthService>(context, listen: false);
-    _checkAuthStatus();
+    _checkAuthAndSetup();
+  }
+
+  Future<void> _checkAuthAndSetup() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Check auth status
+    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    final hasHousehold = prefs.getBool('hasHousehold') ?? false;
+    
+    // Short delay to show splash
+    await Future.delayed(Duration(seconds: 1));
+    
+    if (!isLoggedIn) {
+      // Not logged in - show auth screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => AuthScreen()),
+      );
+    } else if (!hasHousehold) {
+      // Logged in but no household - show setup
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HouseholdSetupScreen()),
+      );
+    } else {
+      // Logged in with household - go to home
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HushHomePage()),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFF6366F1),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'assets/images/logo.png',
-              width: 120,
-              height: 120,
-              errorBuilder: (ctx, obj, stack) => const Icon(
-                Icons.home_rounded, 
-                size: 80, 
-                color: Colors.indigo,
-              ),
+            Icon(
+              Icons.nightlight_round,
+              size: 80,
+              color: Colors.white,
             ),
-            const SizedBox(height: 24),
-            const Text(
+            SizedBox(height: 20),
+            Text(
               'Hush',
               style: TextStyle(
-                fontSize: 28,
+                color: Colors.white,
+                fontSize: 40,
                 fontWeight: FontWeight.bold,
-                color: Colors.indigo,
               ),
             ),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(),
+            SizedBox(height: 40),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Future<void> _checkAuthStatus() async {
+// Auth Screen (Login/Signup)
+class AuthScreen extends StatefulWidget {
+  @override
+  _AuthScreenState createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
+  bool _isLogin = true;
+  bool _isLoading = false;
+  bool _obscurePassword = true;
+  
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  
+  final _formKey = GlobalKey<FormState>();
+  
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _toggleAuthMode() {
+    setState(() {
+      _isLogin = !_isLogin;
+    });
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+    
     try {
-      // Short delay to show splash
-      await Future.delayed(const Duration(seconds: 1));
-
-      if (_authService.isAuthenticated) {
-        // User is logged in, update app state and check household
-        await _appStateService.refreshHouseholdData();
-        final profile = _appStateService.currentProfile;
-
-        if (mounted) {
-          if (profile != null && profile.householdId != null) {
-            // User has already joined/created a household
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => HushHomePage()),
-            );
-          } else {
-            // User needs to join a household
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => HouseholdSetupScreen()),
-            );
-          }
-        }
-      } else {
-        // User is not logged in
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => LoginScreen()),
-          );
-        }
+      // TODO: Implement actual auth with Supabase
+      await Future.delayed(Duration(seconds: 2)); // Simulate API call
+      
+      // Save auth status
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('userEmail', _emailController.text);
+      if (!_isLogin) {
+        await prefs.setString('userName', _nameController.text);
       }
-    } catch (e) {
-      debugPrint('Error in splash screen: $e');
-      if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Authentication error. Please try again.'))
-          );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => LoginScreen()),
-        );
-      }
+      
+      // Navigate to household setup
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HouseholdSetupScreen()),
+      );
+      
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Authentication failed. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: AnimatedContainer(
+        duration: Duration(milliseconds: 500),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: _isLogin 
+              ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+              : [Color(0xFFFFA574), Color(0xFFFF6B9D)],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: 40),
+                    
+                    // Logo and title
+                    Column(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.2),
+                          ),
+                          child: Icon(
+                            Icons.nightlight_round,
+                            size: 60,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        Text(
+                          'Hush',
+                          style: TextStyle(
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Know when your housemates are sleeping',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                    
+                    SizedBox(height: 50),
+                    
+                    // Auth form
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      padding: EdgeInsets.all(24),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              _isLogin ? 'Welcome Back' : 'Create Account',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2D3142),
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 24),
+                            
+                            // Name field (only for signup)
+                            if (!_isLogin) ...[
+                              TextFormField(
+                                controller: _nameController,
+                                decoration: InputDecoration(
+                                  labelText: 'Name',
+                                  prefixIcon: Icon(Icons.person_outline),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFFF6B9D),
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your name';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: 16),
+                            ],
+                            
+                            // Email field
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: InputDecoration(
+                                labelText: 'Email',
+                                prefixIcon: Icon(Icons.email_outlined),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: _isLogin ? Color(0xFF6366F1) : Color(0xFFFF6B9D),
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your email';
+                                }
+                                if (!value.contains('@')) {
+                                  return 'Please enter a valid email';
+                                }
+                                return null;
+                              },
+                            ),
+                            
+                            SizedBox(height: 16),
+                            
+                            // Password field
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: Icon(Icons.lock_outline),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: _isLogin ? Color(0xFF6366F1) : Color(0xFFFF6B9D),
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your password';
+                                }
+                                if (value.length < 6) {
+                                  return 'Password must be at least 6 characters';
+                                }
+                                return null;
+                              },
+                            ),
+                            
+                            SizedBox(height: 24),
+                            
+                            // Submit button
+                            ElevatedButton(
+                              onPressed: _isLoading ? null : _submit,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isLogin ? Color(0xFF6366F1) : Color(0xFFFF6B9D),
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: _isLoading
+                                ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : Text(
+                                    _isLogin ? 'Login' : 'Sign Up',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                            ),
+                            
+                            SizedBox(height: 16),
+                            
+                            // Toggle auth mode
+                            TextButton(
+                              onPressed: _toggleAuthMode,
+                              child: RichText(
+                                text: TextSpan(
+                                  style: TextStyle(color: Colors.grey[600]),
+                                  children: [
+                                    TextSpan(
+                                      text: _isLogin 
+                                        ? "Don't have an account? " 
+                                        : 'Already have an account? ',
+                                    ),
+                                    TextSpan(
+                                      text: _isLogin ? 'Sign up' : 'Login',
+                                      style: TextStyle(
+                                        color: _isLogin ? Color(0xFF6366F1) : Color(0xFFFF6B9D),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    
+                    SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
-// Household Setup Screen
-class HouseholdSetupScreen extends StatefulWidget {
-  const HouseholdSetupScreen({Key? key}) : super(key: key);
-
-  @override
-  _HouseholdSetupScreenState createState() => _HouseholdSetupScreenState();
-}
-
-// HousemateData model class
 class HousemateData {
   final String name;
   String status;
   bool isHome;
   String? lastSeen;
   final bool isMe;
-  
+
   HousemateData({
     required this.name,
     required this.status,
@@ -197,232 +468,16 @@ class HousemateData {
   });
 }
 
-class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
-  late final TextEditingController _joinCodeController;
-  late final TextEditingController _householdNameController;
-  bool _isCreating = false;
-  bool _isJoining = false;
-  String? _errorMessage;
-
-  late final AuthService _authService;
-  late final HouseholdService _householdService;
-  late final ProfileService _profileService;
-
-  @override
-  void initState() {
-    super.initState();
-    _joinCodeController = TextEditingController();
-    _householdNameController = TextEditingController();
-    _authService = AuthService();
-    _householdService = HouseholdService();
-    _profileService = ProfileService();
-  }
-
-  @override
-  void dispose() {
-    _joinCodeController.dispose();
-    _householdNameController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Household Setup'),
-        backgroundColor: Color(0xFF6366F1),
-      ),
-      body: Center(
-        child: Text('Implement household setup UI here'),
-      ),
-    );
-  }
-
-  void _joinHousehold() async {
-    if (_joinCodeController.text.length != 6) {
-      _showError('Please enter a 6-character code');
-      return;
-    }
-
-    setState(() {
-      _isJoining = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final user = _authService.currentUser;
-      if (user == null) {
-        _showError('You need to be logged in');
-        return;
-      }
-
-      // Join the household using the invite code
-      final household = await _householdService.joinHousehold(
-        inviteCode: _joinCodeController.text.toUpperCase(),
-        userId: user.id,
-      );
-
-      // Save household details to SharedPreferences for quick access
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('hasHousehold', true);
-      await prefs.setString('householdName', household.name);
-      await prefs.setString('householdId', household.id);
-      await prefs.setString('inviteCode', household.inviteCode);
-
-      if (mounted) {
-        // Navigate to home
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => HushHomePage()),
-        );
-      }
-    } catch (e) {
-      _showError('Failed to join household: ${e.toString()}');
-    } finally {
-      if (mounted) {
-        setState(() => _isJoining = false);
-      }
-    }
-  }
-
-  void _createHousehold() async {
-    if (_householdNameController.text.isEmpty) {
-      _showError('Please enter a household name');
-      return;
-    }
-
-    setState(() {
-      _isCreating = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final user = _authService.currentUser;
-      if (user == null) {
-        _showError('You need to be logged in');
-        return;
-      }
-
-      // Create the household
-      final household = await _householdService.createHousehold(
-        name: _householdNameController.text,
-        userId: user.id,
-      );
-
-      // Save household details to SharedPreferences for quick access
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('hasHousehold', true);
-      await prefs.setString('householdName', household.name);
-      await prefs.setString('householdId', household.id);
-      await prefs.setString('inviteCode', household.inviteCode);
-
-      if (mounted) {
-        _showInviteCode(household.inviteCode);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isCreating = false);
-      }
-      _showError('Failed to create household: ${e.toString()}');
-    }
-  }
-
-  void _showInviteCode(String code) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('Household Created!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Share this code with your housemates:'),
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    code,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.copy),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: code));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Code copied to clipboard!')),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Keep this code safe! You can find it again in the app settings.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => HushHomePage()),
-              );
-            },
-            child: Text('Continue'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showError(String message) {
-    setState(() {
-      _errorMessage = message;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red.withValues(alpha: 0.8),
-      ),
-    );
-  }
-}
-
-// Main home page of the app after login and household setup
 class HushHomePage extends StatefulWidget {
-  const HushHomePage({Key? key}) : super(key: key);
-
   @override
   _HushHomePageState createState() => _HushHomePageState();
 }
 
 class _HushHomePageState extends State<HushHomePage> {
   bool _isSleeping = false;
-  bool _isLoading = false;
   String _householdName = 'Loading...';
-  late SharedPreferences _prefs;
-  late AppStateService _appStateService;
   
-  List<HousemateData> _housemates = [
+  final List<HousemateData> _housemates = [
     HousemateData(name: 'You', status: 'awake', isHome: true, isMe: true),
     HousemateData(name: 'Alex', status: 'sleeping', isHome: true, isMe: false),
     HousemateData(name: 'Jordan', status: 'awake', isHome: false, lastSeen: '2h ago', isMe: false),
@@ -432,332 +487,218 @@ class _HushHomePageState extends State<HushHomePage> {
   @override
   void initState() {
     super.initState();
-    _appStateService = Provider.of<AppStateService>(context, listen: false);
     _loadHouseholdName();
-    _setupMembersListener();
-  }
-
-  void _setupMembersListener() {
-    // Listen to changes in the app state service
-    _appStateService.addListener(_updateFromAppState);
-  }
-  
-  void _updateFromAppState() {
-    // Update UI when app state changes (real-time updates from Supabase)
-    if (!mounted) return;
-    
-    final members = _appStateService.householdMembers;
-    if (members.isNotEmpty) {
-      setState(() {
-        // This is where we would map from HouseholdMember objects to UI-friendly HousemateData
-        // For now, we'll keep using our sample data
-        // TODO: Implement real mapping when backend is ready
-        // _housemates = members.map((member) => HousemateData(...)).toList();
-      });
-    }
-  }
-  
-  @override
-  void dispose() {
-    // Clean up the listener
-    _appStateService.removeListener(_updateFromAppState);
-    super.dispose();
   }
 
   Future<void> _loadHouseholdName() async {
-    setState(() => _isLoading = true);
-    
-    try {
-      _prefs = await SharedPreferences.getInstance();
-      
-      // Try to get from AppStateService first (real-time data)
-      if (_appStateService.currentProfile?.householdId != null) {
-        final householdId = _appStateService.currentProfile!.householdId!;
-        final householdService = Provider.of<HouseholdService>(context, listen: false);
-        final household = await householdService.getHouseholdById(householdId);
-        
-        setState(() {
-          _householdName = household.name;
-          _isLoading = false;
-        });
-        
-        // Update prefs for faster access next time
-        await _prefs.setString('householdName', household.name);
-      } else {
-        // Fall back to SharedPreferences if needed
-        final householdName = _prefs.getString('householdName') ?? "My Household";
-        setState(() {
-          _householdName = householdName;
-          _isLoading = false;
-        });
-      }
-    } catch (error) {
-      print('Error loading household data: $error');
-      // Fall back to a default name
-      setState(() {
-        _householdName = "My Household";
-        _isLoading = false;
-      });
-    }
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _householdName = prefs.getString('householdName') ?? 'My Household';
+    });
   }
 
   void _toggleSleep() {
     setState(() {
       _isSleeping = !_isSleeping;
+      _housemates[0].status = _isSleeping ? 'sleeping' : 'awake';
     });
-
-    // Update sleep status in Supabase via AppStateService
-    try {
-      _appStateService.updateSleepStatus(_isSleeping);
-      
-      // Also update local data model for immediate UI feedback
-      final HousemateData me = _housemates.firstWhere((person) => person.isMe);
-      setState(() {
-        me.status = _isSleeping ? 'sleeping' : 'awake';
-      });
-    } catch (error) {
-      print('Error updating sleep status: $error');
-      // Revert local state if the update fails
-      setState(() {
-        _isSleeping = !_isSleeping;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update your status. Please try again.')),
-      );
-    }
+    HapticFeedback.lightImpact();
   }
 
   void _toggleHome() {
-    final HousemateData me = _housemates.firstWhere((person) => person.isMe);
-    final bool newHomeStatus = !me.isHome;
-    
-    // Update local state first for immediate feedback
     setState(() {
-      me.isHome = newHomeStatus;
-      me.status = me.isHome ? (me.status == 'sleeping' ? 'sleeping' : 'awake') : 'away';
-      if (!me.isHome) {
-        me.lastSeen = 'Just now';
+      _housemates[0].isHome = !_housemates[0].isHome;
+      if (!_housemates[0].isHome) {
+        _housemates[0].lastSeen = 'Just now';
       } else {
-        me.lastSeen = null;
+        _housemates[0].lastSeen = null;
       }
     });
-    
-    // Update home status in Supabase via AppStateService
-    try {
-      _appStateService.updateHomeStatus(newHomeStatus);
-    } catch (error) {
-      print('Error updating home status: $error');
-      // Revert local state if the update fails
-      setState(() {
-        me.isHome = !newHomeStatus;
-        me.status = me.isHome ? (me.status == 'sleeping' ? 'sleeping' : 'awake') : 'away';
-        if (!me.isHome) {
-          me.lastSeen = 'Just now';
-        } else {
-          me.lastSeen = null;
-        }
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update your status. Please try again.')),
-      );
-    }
+    HapticFeedback.lightImpact();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Column(children: [_buildHeader(), _buildHousematesList()]),
+      body: Column(
+        children: [
+          _buildHeader(),
+          _buildHousematesList(),
+        ],
+      ),
     );
   }
 
   Widget _buildHeader() {
-    return Container(
-      padding: EdgeInsets.all(20),
+    final isHome = _housemates[0].isHome;
+    
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
       decoration: BoxDecoration(
-        color: Colors.indigo[700],
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(15),
-          bottomRight: Radius.circular(15),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _isSleeping 
+            ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+            : [Color(0xFFFFA574), Color(0xFFFF6B9D)],
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _isLoading
-                  ? SizedBox(
-                      width: 120,
-                      child: LinearProgressIndicator(
-                        backgroundColor: Colors.indigo[500],
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text(
-                      _householdName,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-              IconButton(
-                icon: Icon(Icons.settings, color: Colors.white),
-                onPressed: () {
-                  // Show settings bottom sheet
-                  showModalBottomSheet(
-                    context: context,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(20),
-                      ),
-                    ),
-                    builder: (context) => Container(
-                      padding: EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ListTile(
-                            leading: Icon(Icons.exit_to_app),
-                            title: Text('Leave Household'),
-                            subtitle: Text('Reset and return to setup'),
-                            onTap: () async {
-                              final prefs = await SharedPreferences.getInstance();
-                              await prefs.clear();
-                              Navigator.pushAndRemoveUntil(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => LoginScreen(),
-                                ),
-                                (route) => false,
-                              );
-                            },
-                          ),
-                          ListTile(
-                            leading: Icon(Icons.vpn_key),
-                            title: Text('Invite Code'),
-                            subtitle: FutureBuilder<String>(
-                              future: SharedPreferences.getInstance()
-                                  .then(
-                                    (prefs) =>
-                                        prefs.getString('inviteCode') ??
-                                        'N/A',
-                                  ),
-                              builder:
-                                  (context, snapshot) => Text(
-                                    snapshot.data ?? 'Loading...',
-                                  ),
-                            ),
-                            onTap: () async {
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              final code =
-                                  prefs.getString('inviteCode') ?? '';
-                              Clipboard.setData(
-                                ClipboardData(text: code),
-                              );
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(
-                                SnackBar(content: Text('Code copied!')),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(40),
+          bottomRight: Radius.circular(40),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (_isSleeping ? Color(0xFF6366F1) : Color(0xFFFF6B9D)).withOpacity(0.3),
+            blurRadius: 20,
+            offset: Offset(0, 10),
           ),
-          SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center, 
+        ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 50),
+          child: Column(
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    _householdName,
+                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.settings, color: Colors.white, size: 28),
+                    onPressed: () {
+                      // Simple settings menu for testing
+                      showModalBottomSheet(
+                        context: context,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                        ),
+                        builder: (context) => Container(
+                          padding: EdgeInsets.all(20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ListTile(
+                                leading: Icon(Icons.exit_to_app),
+                                title: Text('Leave Household'),
+                                subtitle: Text('Reset and return to setup'),
+                                onTap: () async {
+                                  final prefs = await SharedPreferences.getInstance();
+                                  await prefs.clear();
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => HouseholdSetupScreen()),
+                                    (route) => false,
+                                  );
+                                },
+                              ),
+                              ListTile(
+                                leading: Icon(Icons.person),
+                                title: Text('Profile'),
+                                subtitle: FutureBuilder<String>(
+                                  future: SharedPreferences.getInstance()
+                                      .then((prefs) => prefs.getString('userEmail') ?? 'user@example.com'),
+                                  builder: (context, snapshot) => Text(snapshot.data ?? 'Loading...'),
+                                ),
+                              ),
+                              Divider(),
+                              ListTile(
+                                leading: Icon(Icons.logout, color: Colors.red),
+                                title: Text('Logout', style: TextStyle(color: Colors.red)),
+                                subtitle: Text('Sign out of your account'),
+                                onTap: () async {
+                                  final prefs = await SharedPreferences.getInstance();
+                                  await prefs.clear();
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => AuthScreen()),
+                                    (route) => false,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              SizedBox(height: 40),
+              Text(
+                'Your Status',
+                style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 20, fontWeight: FontWeight.w500),
+              ),
+              SizedBox(height: 40),
               GestureDetector(
-                onTap: _toggleSleep, 
+                onTap: _toggleSleep,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  width: 200,
+                  height: 200,
                   decoration: BoxDecoration(
-                    color: _isSleeping ? Colors.deepPurple[100] : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: _isSleeping 
+                        ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                        : [Color(0xFFFFA574), Color(0xFFFF6B9D)],
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        spreadRadius: 0,
-                        blurRadius: 10,
-                        offset: Offset(0, 5),
+                        color: (_isSleeping ? Color(0xFF6366F1) : Color(0xFFFF6B9D)).withOpacity(0.4),
+                        blurRadius: 30,
+                        spreadRadius: 10,
                       ),
                     ],
                   ),
-                  child: Row(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        _isSleeping ? Icons.nightlight_round : Icons.wb_sunny_outlined,
-                        color: _isSleeping ? Colors.deepPurple : Colors.amber[700],
-                        size: 18,
+                        _isSleeping ? Icons.nightlight_round : Icons.wb_sunny,
+                        size: 70,
+                        color: Colors.white,
                       ),
-                      SizedBox(width: 8),
+                      SizedBox(height: 15),
                       Text(
                         _isSleeping ? 'Sleeping' : 'Awake',
                         style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: _isSleeping ? Colors.deepPurple : Colors.amber[700],
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
-          ),
-          SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center, 
-            children: [
+              SizedBox(height: 20),
               GestureDetector(
-                onTap: _toggleHome, 
+                onTap: _toggleHome,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
-                    color: _housemates.firstWhere((person) => person.isMe).isHome
-                        ? Colors.teal[100]
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        spreadRadius: 0,
-                        blurRadius: 10,
-                        offset: Offset(0, 5),
-                      ),
-                    ],
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(25),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        _housemates.firstWhere((person) => person.isMe).isHome
-                            ? Icons.home
-                            : Icons.directions_walk,
-                        color: _housemates.firstWhere((person) => person.isMe).isHome
-                            ? Colors.teal
-                            : Colors.grey[700],
-                        size: 18,
-                      ),
+                      Icon(isHome ? Icons.home : Icons.directions_walk, color: Colors.white, size: 20),
                       SizedBox(width: 8),
                       Text(
-                        _housemates.firstWhere((person) => person.isMe).isHome
-                            ? 'At Home'
-                            : 'Away',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: _housemates.firstWhere((person) => person.isMe).isHome
-                              ? Colors.teal
-                              : Colors.grey[700],
-                        ),
+                        isHome ? 'At Home' : 'Away',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -765,9 +706,7 @@ class _HushHomePageState extends State<HushHomePage> {
               ),
             ],
           ),
-          SizedBox(height: 20),
-
-        ],
+        ),
       ),
     );
   }
@@ -775,24 +714,118 @@ class _HushHomePageState extends State<HushHomePage> {
   Widget _buildHousematesList() {
     return Expanded(
       child: ListView.builder(
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 30),
         itemCount: _housemates.length,
         itemBuilder: (context, index) {
-          final housemate = _housemates[index];
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundColor: housemate.isMe ? Colors.indigo[700] : Colors.grey[300],
-              child: Text(
-                housemate.name[0].toUpperCase(),
-                style: TextStyle(color: Colors.white),
+          final person = _housemates[index];
+          return _buildHousemateTile(person);
+        },
+      ),
+    );
+  }
+
+  Widget _buildHousemateTile(HousemateData person) {
+    final sleeping = person.status == 'sleeping';
+    final home = person.isHome;
+    
+    return Container(
+      margin: EdgeInsets.only(bottom: 20),
+      child: Row(
+        children: [
+          AnimatedOpacity(
+            duration: Duration(milliseconds: 300),
+            opacity: home ? 1.0 : 0.5,
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: sleeping 
+                    ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                    : [Color(0xFFFFA574), Color(0xFFFF6B9D)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: (sleeping ? Color(0xFF6366F1) : Color(0xFFFF6B9D)).withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Icon(
+                sleeping ? Icons.nightlight_round : Icons.wb_sunny,
+                color: Colors.white,
+                size: 30,
               ),
             ),
-            title: Text(housemate.name),
-            subtitle: Text(housemate.status),
-            trailing: housemate.isHome
-                ? Icon(Icons.home, color: Colors.teal)
-                : Icon(Icons.directions_walk, color: Colors.grey[700]),
-          );
-        },
+          ),
+          SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      person.name,
+                      style: TextStyle(
+                        fontWeight: person.isMe ? FontWeight.bold : FontWeight.w500,
+                        fontSize: 20,
+                        color: home ? Color(0xFF2D3142) : Color(0xFF9CA3AF),
+                      ),
+                    ),
+                    if (!home) ...[
+                      SizedBox(width: 10),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF6B7280),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.location_off, size: 14, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text('Away', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (!home && person.lastSeen != null)
+                  Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Left ${person.lastSeen}',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: sleeping 
+                ? Color(0xFF6366F1).withOpacity(0.1)
+                : Color(0xFFFF6B9D).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: Text(
+              sleeping ? 'Sleeping' : 'Awake',
+              style: TextStyle(
+                color: sleeping ? Color(0xFF4F46E5) : Color(0xFFFF6B9D),
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
