@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'screens/household_setup_screen.dart';
 
 void main() => runApp(HushApp());
 
@@ -15,18 +14,58 @@ class HushApp extends StatelessWidget {
         primarySwatch: Colors.indigo,
         scaffoldBackgroundColor: Colors.grey[50],
       ),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => SplashScreen(),
-        '/auth': (context) => AuthScreen(),
-        '/setup': (context) => HouseholdSetupScreen(),
-        '/home': (context) => HushHomePage(),
-      },
+      home: SplashScreen(),
     );
   }
 }
 
-// Splash screen to check if user is logged in and has household
+// Privacy Settings Model
+class PrivacySettings {
+  bool shareDetailedStatus;
+  bool shareLocation;
+  bool shareActiveHours;
+  bool allowQuietHours;
+
+  PrivacySettings({
+    this.shareDetailedStatus = false, // Default to private
+    this.shareLocation = false,
+    this.shareActiveHours = true, // This is core to the app's purpose
+    this.allowQuietHours = true,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'shareDetailedStatus': shareDetailedStatus,
+    'shareLocation': shareLocation,
+    'shareActiveHours': shareActiveHours,
+    'allowQuietHours': allowQuietHours,
+  };
+
+  factory PrivacySettings.fromJson(Map<String, dynamic> json) =>
+      PrivacySettings(
+        shareDetailedStatus: json['shareDetailedStatus'] ?? false,
+        shareLocation: json['shareLocation'] ?? false,
+        shareActiveHours: json['shareActiveHours'] ?? true,
+        allowQuietHours: json['allowQuietHours'] ?? true,
+      );
+}
+
+// User Status Model - Minimal info focused on noise consideration
+class UserStatus {
+  final String name;
+  final bool isQuietTime; // Core feature: do they need quiet?
+  final bool isHome; // Only if user chose to share location
+  final String? generalActivity; // Vague: "resting", "active", "away"
+  final bool shareDetails; // Whether they're sharing any details at all
+
+  UserStatus({
+    required this.name,
+    required this.isQuietTime,
+    this.isHome = true,
+    this.generalActivity,
+    this.shareDetails = true,
+  });
+}
+
 class SplashScreen extends StatefulWidget {
   @override
   _SplashScreenState createState() => _SplashScreenState();
@@ -36,36 +75,24 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuthAndSetup();
+    _checkSetupStatus();
   }
 
-  Future<void> _checkAuthAndSetup() async {
+  Future<void> _checkSetupStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    
-    // Check auth status
-    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
     final hasHousehold = prefs.getBool('hasHousehold') ?? false;
-    
-    // Short delay to show splash
+
     await Future.delayed(Duration(seconds: 1));
-    
-    if (!isLoggedIn) {
-      // Not logged in - show auth screen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => AuthScreen()),
-      );
-    } else if (!hasHousehold) {
-      // Logged in but no household - show setup
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HouseholdSetupScreen()),
-      );
-    } else {
-      // Logged in with household - go to home
+
+    if (hasHousehold) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => HushHomePage()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HouseholdSetupScreen()),
       );
     }
   }
@@ -78,11 +105,7 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.nightlight_round,
-              size: 80,
-              color: Colors.white,
-            ),
+            Icon(Icons.volume_off_rounded, size: 80, color: Colors.white),
             SizedBox(height: 20),
             Text(
               'Hush',
@@ -90,6 +113,14 @@ class _SplashScreenState extends State<SplashScreen> {
                 color: Colors.white,
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Respectful living',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 16,
               ),
             ),
             SizedBox(height: 40),
@@ -103,347 +134,494 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-// Auth Screen (Login/Signup)
-class AuthScreen extends StatefulWidget {
+class HouseholdSetupScreen extends StatefulWidget {
   @override
-  _AuthScreenState createState() => _AuthScreenState();
+  _HouseholdSetupScreenState createState() => _HouseholdSetupScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
-  bool _isLogin = true;
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-  
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
-  
-  final _formKey = GlobalKey<FormState>();
-  
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
-    );
-    _animationController.forward();
-  }
+class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
+  final _joinCodeController = TextEditingController();
+  final _householdNameController = TextEditingController();
+  bool _isCreating = false;
+  bool _isJoining = false;
 
   @override
   void dispose() {
-    _animationController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _nameController.dispose();
+    _joinCodeController.dispose();
+    _householdNameController.dispose();
     super.dispose();
   }
 
-  void _toggleAuthMode() {
-    setState(() {
-      _isLogin = !_isLogin;
-    });
+  void _joinHousehold() async {
+    if (_joinCodeController.text.length != 6) {
+      _showError('Please enter a 6-character code');
+      return;
+    }
+
+    setState(() => _isJoining = true);
+    await Future.delayed(Duration(seconds: 2));
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasHousehold', true);
+    await prefs.setString('householdName', 'The Apartment');
+    await prefs.setString('householdId', 'generated-id');
+    await prefs.setString('inviteCode', _joinCodeController.text);
+
+    setState(() => _isJoining = false);
+
+    // Show privacy onboarding before entering main app
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => PrivacyOnboardingScreen()),
+    );
   }
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-    
-    try {
-      // TODO: Implement actual auth with Supabase
-      await Future.delayed(Duration(seconds: 2)); // Simulate API call
-      
-      // Save auth status
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isLoggedIn', true);
-      await prefs.setString('userEmail', _emailController.text);
-      if (!_isLogin) {
-        await prefs.setString('userName', _nameController.text);
-      }
-      
-      // Navigate to household setup
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HouseholdSetupScreen()),
-      );
-      
-    } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Authentication failed. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isLoading = false);
+  void _createHousehold() async {
+    if (_householdNameController.text.isEmpty) {
+      _showError('Please enter a household name');
+      return;
     }
+
+    setState(() => _isCreating = true);
+    await Future.delayed(Duration(seconds: 2));
+
+    final inviteCode = _generateInviteCode();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasHousehold', true);
+    await prefs.setString('householdName', _householdNameController.text);
+    await prefs.setString('householdId', 'generated-id');
+    await prefs.setString('inviteCode', inviteCode);
+    await prefs.setBool('isHouseholdCreator', true);
+
+    setState(() => _isCreating = false);
+    _showInviteCode(inviteCode);
+  }
+
+  String _generateInviteCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = DateTime.now().millisecondsSinceEpoch;
+    String code = '';
+    for (int i = 0; i < 6; i++) {
+      final index = (random * (i + 1)) % chars.length;
+      code += chars[index.toInt()];
+    }
+    return code;
+  }
+
+  void _showInviteCode(String code) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text('Household Created!'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Share this code with your housemates:'),
+                SizedBox(height: 20),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF6366F1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    code,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF6366F1),
+                      letterSpacing: 8,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Code copied to clipboard'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.copy),
+                  label: Text('Copy Code'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PrivacyOnboardingScreen(),
+                    ),
+                  );
+                },
+                child: Text('Continue'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: AnimatedContainer(
-        duration: Duration(milliseconds: 500),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: _isLogin 
-              ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
-              : [Color(0xFFFFA574), Color(0xFFFF6B9D)],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.all(24.0),
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(height: 40),
-                    
-                    // Logo and title
-                    Column(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.2),
-                          ),
-                          child: Icon(
-                            Icons.nightlight_round,
-                            size: 60,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: 20),
-                        Text(
-                          'Hush',
-                          style: TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Know when your housemates are sleeping',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: 40),
+                Text(
+                  'Set Up Your\nHousehold',
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF2D3142),
+                    height: 1.2,
+                  ),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Create a household focused on respectful living',
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                ),
+                SizedBox(height: 40),
+
+                // Join Household Card
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
                     ),
-                    
-                    SizedBox(height: 50),
-                    
-                    // Auth form
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 20,
-                            offset: Offset(0, 10),
-                          ),
-                        ],
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFF6366F1).withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: Offset(0, 10),
                       ),
-                      padding: EdgeInsets.all(24),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                    ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
+                            Container(
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.people,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                            SizedBox(width: 16),
                             Text(
-                              _isLogin ? 'Welcome Back' : 'Create Account',
+                              'Join Household',
                               style: TextStyle(
-                                fontSize: 24,
+                                color: Colors.white,
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF2D3142),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            SizedBox(height: 24),
-                            
-                            // Name field (only for signup)
-                            if (!_isLogin) ...[
-                              TextFormField(
-                                controller: _nameController,
-                                decoration: InputDecoration(
-                                  labelText: 'Name',
-                                  prefixIcon: Icon(Icons.person_outline),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Color(0xFFFF6B9D),
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your name';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              SizedBox(height: 16),
-                            ],
-                            
-                            // Email field
-                            TextFormField(
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: InputDecoration(
-                                labelText: 'Email',
-                                prefixIcon: Icon(Icons.email_outlined),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: _isLogin ? Color(0xFF6366F1) : Color(0xFFFF6B9D),
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your email';
-                                }
-                                if (!value.contains('@')) {
-                                  return 'Please enter a valid email';
-                                }
-                                return null;
-                              },
-                            ),
-                            
-                            SizedBox(height: 16),
-                            
-                            // Password field
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: _obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: 'Password',
-                                prefixIcon: Icon(Icons.lock_outline),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _obscurePassword = !_obscurePassword;
-                                    });
-                                  },
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: _isLogin ? Color(0xFF6366F1) : Color(0xFFFF6B9D),
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter your password';
-                                }
-                                if (value.length < 6) {
-                                  return 'Password must be at least 6 characters';
-                                }
-                                return null;
-                              },
-                            ),
-                            
-                            SizedBox(height: 24),
-                            
-                            // Submit button
-                            ElevatedButton(
-                              onPressed: _isLoading ? null : _submit,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isLogin ? Color(0xFF6366F1) : Color(0xFFFF6B9D),
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: _isLoading
-                                ? SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  )
-                                : Text(
-                                    _isLogin ? 'Login' : 'Sign Up',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                            ),
-                            
-                            SizedBox(height: 16),
-                            
-                            // Toggle auth mode
-                            TextButton(
-                              onPressed: _toggleAuthMode,
-                              child: RichText(
-                                text: TextSpan(
-                                  style: TextStyle(color: Colors.grey[600]),
-                                  children: [
-                                    TextSpan(
-                                      text: _isLogin 
-                                        ? "Don't have an account? " 
-                                        : 'Already have an account? ',
-                                    ),
-                                    TextSpan(
-                                      text: _isLogin ? 'Sign up' : 'Login',
-                                      style: TextStyle(
-                                        color: _isLogin ? Color(0xFF6366F1) : Color(0xFFFF6B9D),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
                           ],
                         ),
+                        SizedBox(height: 20),
+                        Text(
+                          'Enter the 6-character invite code',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 16,
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                            ),
+                          ),
+                          child: TextField(
+                            controller: _joinCodeController,
+                            textCapitalization: TextCapitalization.characters,
+                            maxLength: 6,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 8,
+                            ),
+                            textAlign: TextAlign.center,
+                            decoration: InputDecoration(
+                              hintText: 'XXXXXX',
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 8,
+                              ),
+                              border: InputBorder.none,
+                              counterText: '',
+                              contentPadding: EdgeInsets.all(16),
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[A-Z0-9]'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isJoining ? null : _joinHousehold,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Color(0xFF6366F1),
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            child:
+                                _isJoining
+                                    ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF6366F1),
+                                            ),
+                                      ),
+                                    )
+                                    : Text(
+                                      'Join Household',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: 30),
+
+                // OR divider
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.grey[300])),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'OR',
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                    
-                    SizedBox(height: 20),
+                    Expanded(child: Divider(color: Colors.grey[300])),
                   ],
                 ),
-              ),
+
+                SizedBox(height: 30),
+
+                // Create Household Card
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFFFA574), Color(0xFFFF6B9D)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFFFF6B9D).withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.add_home,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                            SizedBox(width: 16),
+                            Text(
+                              'Create New',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 20),
+                        Text(
+                          'Start your own household',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 16,
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                            ),
+                          ),
+                          child: TextField(
+                            controller: _householdNameController,
+                            style: TextStyle(color: Colors.white, fontSize: 18),
+                            decoration: InputDecoration(
+                              hintText: 'e.g., The Apartment',
+                              hintStyle: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 18,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.home,
+                                color: Colors.white.withOpacity(0.7),
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.all(16),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isCreating ? null : _createHousehold,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Color(0xFFFF6B9D),
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            child:
+                                _isCreating
+                                    ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFFFF6B9D),
+                                            ),
+                                      ),
+                                    )
+                                    : Text(
+                                      'Create Household',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: 20),
+
+                // Privacy note
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.privacy_tip_outlined,
+                        color: Colors.green[700],
+                        size: 20,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Privacy-first design. You control what you share.',
+                          style: TextStyle(
+                            color: Colors.green[700],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -452,20 +630,265 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   }
 }
 
-class HousemateData {
-  final String name;
-  String status;
-  bool isHome;
-  String? lastSeen;
-  final bool isMe;
+// NEW: Privacy onboarding screen
+class PrivacyOnboardingScreen extends StatefulWidget {
+  @override
+  _PrivacyOnboardingScreenState createState() =>
+      _PrivacyOnboardingScreenState();
+}
 
-  HousemateData({
-    required this.name,
-    required this.status,
-    required this.isHome,
-    this.lastSeen,
-    required this.isMe,
-  });
+class _PrivacyOnboardingScreenState extends State<PrivacyOnboardingScreen> {
+  PrivacySettings _settings = PrivacySettings();
+
+  Future<void> _saveSettingsAndContinue() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Save privacy settings
+    final settingsJson = _settings.toJson();
+    for (String key in settingsJson.keys) {
+      await prefs.setBool(key, settingsJson[key]);
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => HushHomePage()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: 20),
+              Icon(Icons.privacy_tip, size: 60, color: Color(0xFF6366F1)),
+              SizedBox(height: 20),
+              Text(
+                'Your Privacy\nMatters',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2D3142),
+                  height: 1.2,
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Choose what you\'re comfortable sharing with your housemates.',
+                style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 40),
+
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      _buildPrivacyOption(
+                        title: 'Quiet Time Status',
+                        subtitle:
+                            'Let others know when you need quiet (core feature)',
+                        icon: Icons.volume_off,
+                        value: _settings.allowQuietHours,
+                        onChanged:
+                            (val) =>
+                                setState(() => _settings.allowQuietHours = val),
+                        required: true,
+                      ),
+
+                      _buildPrivacyOption(
+                        title: 'General Activity',
+                        subtitle:
+                            'Share if you\'re "resting", "active", or "away" (no details)',
+                        icon: Icons.timeline,
+                        value: _settings.shareActiveHours,
+                        onChanged:
+                            (val) => setState(
+                              () => _settings.shareActiveHours = val,
+                            ),
+                      ),
+
+                      _buildPrivacyOption(
+                        title: 'Location Status',
+                        subtitle: 'Share whether you\'re home or away',
+                        icon: Icons.location_on,
+                        value: _settings.shareLocation,
+                        onChanged:
+                            (val) =>
+                                setState(() => _settings.shareLocation = val),
+                      ),
+
+                      _buildPrivacyOption(
+                        title: 'Detailed Status',
+                        subtitle: 'Share specific activities and timing',
+                        icon: Icons.info_outline,
+                        value: _settings.shareDetailedStatus,
+                        onChanged:
+                            (val) => setState(
+                              () => _settings.shareDetailedStatus = val,
+                            ),
+                      ),
+
+                      SizedBox(height: 20),
+
+                      Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.shield,
+                                  color: Colors.blue[700],
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Privacy Promise',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              '• You can change these settings anytime\n'
+                              '• Data is only shared within your household\n'
+                              '• No tracking when you go "invisible"\n'
+                              '• You can pause sharing temporarily',
+                              style: TextStyle(
+                                color: Colors.blue[700],
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saveSettingsAndContinue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'Save & Continue',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacyOption({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    bool required = false,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Color(0xFF6366F1).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Color(0xFF6366F1), size: 20),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    if (required) ...[
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'CORE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged:
+                required ? null : onChanged, // Core feature can't be disabled
+            activeColor: Color(0xFF6366F1),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class HushHomePage extends StatefulWidget {
@@ -474,45 +897,72 @@ class HushHomePage extends StatefulWidget {
 }
 
 class _HushHomePageState extends State<HushHomePage> {
-  bool _isSleeping = false;
+  bool _isQuietTime = false;
+  bool _isInvisible = false;
   String _householdName = 'Loading...';
-  
-  final List<HousemateData> _housemates = [
-    HousemateData(name: 'You', status: 'awake', isHome: true, isMe: true),
-    HousemateData(name: 'Alex', status: 'sleeping', isHome: true, isMe: false),
-    HousemateData(name: 'Jordan', status: 'awake', isHome: false, lastSeen: '2h ago', isMe: false),
-    HousemateData(name: 'Sam', status: 'sleeping', isHome: true, isMe: false),
+  PrivacySettings _privacySettings = PrivacySettings();
+
+  // Sample data - in real app this would come from backend
+  final List<UserStatus> _housemates = [
+    UserStatus(name: 'You', isQuietTime: false),
+    UserStatus(name: 'Alex', isQuietTime: true, generalActivity: 'resting'),
+    UserStatus(
+      name: 'Jordan',
+      isQuietTime: false,
+      isHome: false,
+      generalActivity: 'away',
+    ),
+    UserStatus(
+      name: 'Sam',
+      isQuietTime: false,
+      shareDetails: false,
+    ), // This user is "invisible"
   ];
 
   @override
   void initState() {
     super.initState();
-    _loadHouseholdName();
+    _loadSettings();
   }
 
-  Future<void> _loadHouseholdName() async {
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _householdName = prefs.getString('householdName') ?? 'My Household';
+      _privacySettings = PrivacySettings(
+        shareDetailedStatus: prefs.getBool('shareDetailedStatus') ?? false,
+        shareLocation: prefs.getBool('shareLocation') ?? false,
+        shareActiveHours: prefs.getBool('shareActiveHours') ?? true,
+        allowQuietHours: prefs.getBool('allowQuietHours') ?? true,
+      );
     });
   }
 
-  void _toggleSleep() {
+  void _toggleQuietTime() {
     setState(() {
-      _isSleeping = !_isSleeping;
-      _housemates[0].status = _isSleeping ? 'sleeping' : 'awake';
+      _isQuietTime = !_isQuietTime;
+      _housemates[0] = UserStatus(
+        name: 'You',
+        isQuietTime: _isQuietTime,
+        isHome: _housemates[0].isHome,
+        generalActivity: _isQuietTime ? 'resting' : 'active',
+        shareDetails: !_isInvisible,
+      );
     });
     HapticFeedback.lightImpact();
   }
 
-  void _toggleHome() {
+  void _toggleInvisible() {
     setState(() {
-      _housemates[0].isHome = !_housemates[0].isHome;
-      if (!_housemates[0].isHome) {
-        _housemates[0].lastSeen = 'Just now';
-      } else {
-        _housemates[0].lastSeen = null;
-      }
+      _isInvisible = !_isInvisible;
+      _housemates[0] = UserStatus(
+        name: 'You',
+        isQuietTime: _isQuietTime,
+        isHome: _housemates[0].isHome,
+        generalActivity:
+            _isInvisible ? null : (_isQuietTime ? 'resting' : 'active'),
+        shareDetails: !_isInvisible,
+      );
     });
     HapticFeedback.lightImpact();
   }
@@ -521,18 +971,11 @@ class _HushHomePageState extends State<HushHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Column(
-        children: [
-          _buildHeader(),
-          _buildHousematesList(),
-        ],
-      ),
+      body: Column(children: [_buildHeader(), _buildHousematesList()]),
     );
   }
 
   Widget _buildHeader() {
-    final isHome = _housemates[0].isHome;
-    
     return AnimatedContainer(
       duration: Duration(milliseconds: 500),
       curve: Curves.easeInOut,
@@ -540,9 +983,10 @@ class _HushHomePageState extends State<HushHomePage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: _isSleeping 
-            ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
-            : [Color(0xFFFFA574), Color(0xFFFF6B9D)],
+          colors:
+              _isQuietTime
+                  ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                  : [Color(0xFF10B981), Color(0xFF059669)],
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(40),
@@ -550,7 +994,8 @@ class _HushHomePageState extends State<HushHomePage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: (_isSleeping ? Color(0xFF6366F1) : Color(0xFFFF6B9D)).withOpacity(0.3),
+            color: (_isQuietTime ? Color(0xFF6366F1) : Color(0xFF10B981))
+                .withOpacity(0.3),
             blurRadius: 20,
             offset: Offset(0, 10),
           ),
@@ -567,95 +1012,82 @@ class _HushHomePageState extends State<HushHomePage> {
                 children: [
                   Text(
                     '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   Text(
                     _householdName,
-                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   IconButton(
                     icon: Icon(Icons.settings, color: Colors.white, size: 28),
-                    onPressed: () {
-                      // Simple settings menu for testing
-                      showModalBottomSheet(
-                        context: context,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                        ),
-                        builder: (context) => Container(
-                          padding: EdgeInsets.all(20),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ListTile(
-                                leading: Icon(Icons.exit_to_app),
-                                title: Text('Leave Household'),
-                                subtitle: Text('Reset and return to setup'),
-                                onTap: () async {
-                                  final prefs = await SharedPreferences.getInstance();
-                                  await prefs.clear();
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => HouseholdSetupScreen()),
-                                    (route) => false,
-                                  );
-                                },
-                              ),
-                              ListTile(
-                                leading: Icon(Icons.person),
-                                title: Text('Profile'),
-                                subtitle: FutureBuilder<String>(
-                                  future: SharedPreferences.getInstance()
-                                      .then((prefs) => prefs.getString('userEmail') ?? 'user@example.com'),
-                                  builder: (context, snapshot) => Text(snapshot.data ?? 'Loading...'),
-                                ),
-                              ),
-                              Divider(),
-                              ListTile(
-                                leading: Icon(Icons.logout, color: Colors.red),
-                                title: Text('Logout', style: TextStyle(color: Colors.red)),
-                                subtitle: Text('Sign out of your account'),
-                                onTap: () async {
-                                  final prefs = await SharedPreferences.getInstance();
-                                  await prefs.clear();
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => AuthScreen()),
-                                    (route) => false,
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _showSettingsMenu(),
                   ),
                 ],
               ),
-              SizedBox(height: 40),
+              SizedBox(height: 30),
+
+              if (_isInvisible) ...[
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.visibility_off, color: Colors.white, size: 16),
+                      SizedBox(width: 8),
+                      Text(
+                        'Invisible Mode',
+                        style: TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 20),
+              ],
+
               Text(
-                'Your Status',
-                style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 20, fontWeight: FontWeight.w500),
+                _isInvisible ? 'Private Mode' : 'Household Status',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.95),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              SizedBox(height: 40),
+              SizedBox(height: 30),
+
+              // Main status button
               GestureDetector(
-                onTap: _toggleSleep,
+                onTap: _toggleQuietTime,
                 child: Container(
-                  width: 200,
-                  height: 200,
+                  width: 180,
+                  height: 180,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: _isSleeping 
-                        ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
-                        : [Color(0xFFFFA574), Color(0xFFFF6B9D)],
+                      colors:
+                          _isQuietTime
+                              ? [Color(0xFF818CF8), Color(0xFF6366F1)]
+                              : [Color(0xFF34D399), Color(0xFF10B981)],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: (_isSleeping ? Color(0xFF6366F1) : Color(0xFFFF6B9D)).withOpacity(0.4),
+                        color: (_isQuietTime
+                                ? Color(0xFF6366F1)
+                                : Color(0xFF10B981))
+                            .withOpacity(0.4),
                         blurRadius: 30,
                         spreadRadius: 10,
                       ),
@@ -665,40 +1097,64 @@ class _HushHomePageState extends State<HushHomePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        _isSleeping ? Icons.nightlight_round : Icons.wb_sunny,
-                        size: 70,
+                        _isQuietTime
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_rounded,
+                        size: 60,
                         color: Colors.white,
                       ),
-                      SizedBox(height: 15),
+                      SizedBox(height: 12),
                       Text(
-                        _isSleeping ? 'Sleeping' : 'Awake',
+                        _isQuietTime ? 'Quiet Time' : 'Available',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 28,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        _isQuietTime ? 'Please be quiet' : 'Normal volume OK',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              SizedBox(height: 20),
+
+              SizedBox(height: 25),
+
+              // Privacy toggle
               GestureDetector(
-                onTap: _toggleHome,
+                onTap: _toggleInvisible,
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withOpacity(_isInvisible ? 0.3 : 0.2),
                     borderRadius: BorderRadius.circular(25),
+                    border:
+                        _isInvisible
+                            ? Border.all(color: Colors.white, width: 2)
+                            : null,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(isHome ? Icons.home : Icons.directions_walk, color: Colors.white, size: 20),
+                      Icon(
+                        _isInvisible ? Icons.visibility_off : Icons.visibility,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       SizedBox(width: 8),
                       Text(
-                        isHome ? 'At Home' : 'Away',
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                        _isInvisible ? 'Go Visible' : 'Go Invisible',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
@@ -712,57 +1168,96 @@ class _HushHomePageState extends State<HushHomePage> {
   }
 
   Widget _buildHousematesList() {
+    // Only show housemates who are sharing details
+    final visibleHousemates = _housemates.where((h) => h.shareDetails).toList();
+    final hiddenCount = _housemates.length - visibleHousemates.length;
+
     return Expanded(
-      child: ListView.builder(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-        itemCount: _housemates.length,
-        itemBuilder: (context, index) {
-          final person = _housemates[index];
-          return _buildHousemateTile(person);
-        },
+      child: Column(
+        children: [
+          if (hiddenCount > 0) ...[
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.visibility_off,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '$hiddenCount housemate${hiddenCount > 1 ? 's' : ''} in private mode',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              itemCount: visibleHousemates.length,
+              itemBuilder: (context, index) {
+                final person = visibleHousemates[index];
+                return _buildHousemateTile(person);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildHousemateTile(HousemateData person) {
-    final sleeping = person.status == 'sleeping';
-    final home = person.isHome;
-    
+  Widget _buildHousemateTile(UserStatus person) {
+    final needsQuiet = person.isQuietTime;
+    final isAway = !person.isHome && _privacySettings.shareLocation;
+
     return Container(
-      margin: EdgeInsets.only(bottom: 20),
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          AnimatedOpacity(
-            duration: Duration(milliseconds: 300),
-            opacity: home ? 1.0 : 0.5,
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: sleeping 
-                    ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
-                    : [Color(0xFFFFA574), Color(0xFFFF6B9D)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: (sleeping ? Color(0xFF6366F1) : Color(0xFFFF6B9D)).withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Icon(
-                sleeping ? Icons.nightlight_round : Icons.wb_sunny,
-                color: Colors.white,
-                size: 30,
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors:
+                    needsQuiet
+                        ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                        : [Color(0xFF10B981), Color(0xFF059669)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
+            child: Icon(
+              needsQuiet ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
-          SizedBox(width: 20),
+          SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,58 +1267,501 @@ class _HushHomePageState extends State<HushHomePage> {
                     Text(
                       person.name,
                       style: TextStyle(
-                        fontWeight: person.isMe ? FontWeight.bold : FontWeight.w500,
-                        fontSize: 20,
-                        color: home ? Color(0xFF2D3142) : Color(0xFF9CA3AF),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Color(0xFF2D3142),
                       ),
                     ),
-                    if (!home) ...[
-                      SizedBox(width: 10),
+                    if (isAway) ...[
+                      SizedBox(width: 8),
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF6B7280),
-                          borderRadius: BorderRadius.circular(12),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.location_off, size: 14, color: Colors.white),
-                            SizedBox(width: 4),
-                            Text('Away', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
-                          ],
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Away',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
                   ],
                 ),
-                if (!home && person.lastSeen != null)
-                  Padding(
-                    padding: EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Left ${person.lastSeen}',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
-                    ),
+                SizedBox(height: 4),
+                Text(
+                  needsQuiet
+                      ? 'Needs quiet time'
+                      : 'Available for normal activity',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                ),
+                if (_privacySettings.shareActiveHours &&
+                    person.generalActivity != null) ...[
+                  SizedBox(height: 2),
+                  Text(
+                    'Currently: ${person.generalActivity}',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
                   ),
+                ],
               ],
             ),
           ),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: sleeping 
-                ? Color(0xFF6366F1).withOpacity(0.1)
-                : Color(0xFFFF6B9D).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(25),
+              color:
+                  needsQuiet
+                      ? Color(0xFF6366F1).withOpacity(0.1)
+                      : Color(0xFF10B981).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              sleeping ? 'Sleeping' : 'Awake',
+              needsQuiet ? 'Quiet' : 'Available',
               style: TextStyle(
-                color: sleeping ? Color(0xFF4F46E5) : Color(0xFFFF6B9D),
+                color: needsQuiet ? Color(0xFF4F46E5) : Color(0xFF059669),
                 fontWeight: FontWeight.w600,
-                fontSize: 16,
+                fontSize: 14,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettingsMenu() {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder:
+          (context) => Container(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: Icon(Icons.privacy_tip),
+                  title: Text('Privacy Settings'),
+                  subtitle: Text('Control what you share'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PrivacySettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.vpn_key),
+                  title: Text('Invite Code'),
+                  subtitle: FutureBuilder<String>(
+                    future: SharedPreferences.getInstance().then(
+                      (prefs) => prefs.getString('inviteCode') ?? 'N/A',
+                    ),
+                    builder:
+                        (context, snapshot) =>
+                            Text(snapshot.data ?? 'Loading...'),
+                  ),
+                  onTap: () async {
+                    final prefs = await SharedPreferences.getInstance();
+                    final code = prefs.getString('inviteCode') ?? '';
+                    Clipboard.setData(ClipboardData(text: code));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Invite code copied!')),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.info_outline),
+                  title: Text('About Hush'),
+                  subtitle: Text('Privacy-first household coordination'),
+                  onTap: () => _showAboutDialog(),
+                ),
+                Divider(),
+                ListTile(
+                  leading: Icon(Icons.exit_to_app, color: Colors.red),
+                  title: Text(
+                    'Leave Household',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  subtitle: Text('Reset and return to setup'),
+                  onTap: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder:
+                          (context) => AlertDialog(
+                            title: Text('Leave Household?'),
+                            content: Text(
+                              'This will clear all your data and return you to setup.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: Text(
+                                  'Leave',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                    );
+
+                    if (confirmed == true) {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.clear();
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => HouseholdSetupScreen(),
+                        ),
+                        (route) => false,
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.volume_off_rounded, color: Color(0xFF6366F1)),
+                SizedBox(width: 8),
+                Text('About Hush'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hush helps housemates coordinate quiet times respectfully.',
+                  style: TextStyle(fontSize: 16),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Privacy Features:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  '• Minimal data sharing by default\n'
+                  '• "Invisible mode" for complete privacy\n'
+                  '• No tracking of specific activities\n'
+                  '• You control all sharing settings\n'
+                  '• Data stays within your household',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Got it'),
+              ),
+            ],
+          ),
+    );
+  }
+}
+
+// NEW: Privacy settings screen
+class PrivacySettingsScreen extends StatefulWidget {
+  @override
+  _PrivacySettingsScreenState createState() => _PrivacySettingsScreenState();
+}
+
+class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
+  PrivacySettings _settings = PrivacySettings();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _settings = PrivacySettings(
+        shareDetailedStatus: prefs.getBool('shareDetailedStatus') ?? false,
+        shareLocation: prefs.getBool('shareLocation') ?? false,
+        shareActiveHours: prefs.getBool('shareActiveHours') ?? true,
+        allowQuietHours: prefs.getBool('allowQuietHours') ?? true,
+      );
+    });
+  }
+
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final settingsJson = _settings.toJson();
+    for (String key in settingsJson.keys) {
+      await prefs.setBool(key, settingsJson[key]);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Privacy settings saved'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: Text('Privacy Settings'),
+        backgroundColor: Color(0xFF6366F1),
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Control Your Sharing',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2D3142),
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Choose what information you\'re comfortable sharing with your housemates.',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            SizedBox(height: 30),
+
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildPrivacyOption(
+                      title: 'Quiet Time Status',
+                      subtitle:
+                          'Core feature: Let others know when you need quiet',
+                      icon: Icons.volume_off,
+                      value: _settings.allowQuietHours,
+                      onChanged:
+                          (val) =>
+                              setState(() => _settings.allowQuietHours = val),
+                      required: true,
+                    ),
+
+                    _buildPrivacyOption(
+                      title: 'General Activity',
+                      subtitle:
+                          'Share vague status like "resting", "active", or "away"',
+                      icon: Icons.timeline,
+                      value: _settings.shareActiveHours,
+                      onChanged:
+                          (val) =>
+                              setState(() => _settings.shareActiveHours = val),
+                    ),
+
+                    _buildPrivacyOption(
+                      title: 'Location Status',
+                      subtitle: 'Share whether you\'re home or away',
+                      icon: Icons.location_on,
+                      value: _settings.shareLocation,
+                      onChanged:
+                          (val) =>
+                              setState(() => _settings.shareLocation = val),
+                    ),
+
+                    _buildPrivacyOption(
+                      title: 'Detailed Status',
+                      subtitle:
+                          'Share specific activities and timing information',
+                      icon: Icons.info_outline,
+                      value: _settings.shareDetailedStatus,
+                      onChanged:
+                          (val) => setState(
+                            () => _settings.shareDetailedStatus = val,
+                          ),
+                    ),
+
+                    SizedBox(height: 20),
+
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.amber[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.amber[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.lightbulb_outline,
+                                color: Colors.amber[700],
+                                size: 20,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Pro Tip',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Use "Invisible Mode" on the main screen to temporarily stop sharing any information at all.',
+                            style: TextStyle(
+                              color: Colors.amber[700],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  _saveSettings();
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  'Save Settings',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacyOption({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    bool required = false,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Color(0xFF6366F1).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Color(0xFF6366F1), size: 20),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    if (required) ...[
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'REQUIRED',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: required ? null : onChanged,
+            activeColor: Color(0xFF6366F1),
           ),
         ],
       ),

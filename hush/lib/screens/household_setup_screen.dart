@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'privacy_onboarding_screen.dart';
 
 class HouseholdSetupScreen extends StatefulWidget {
   @override
@@ -27,19 +28,21 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
     }
 
     setState(() => _isJoining = true);
+    await Future.delayed(Duration(seconds: 2));
 
-    // TODO: Implement actual join logic with Supabase
-    await Future.delayed(Duration(seconds: 2)); // Simulate API call
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasHousehold', true);
+    await prefs.setString('householdName', 'The Apartment');
+    await prefs.setString('householdId', 'generated-id');
+    await prefs.setString('inviteCode', _joinCodeController.text);
 
     setState(() => _isJoining = false);
 
-    // Set household preference to true
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('hasHousehold', true);
-    await prefs.setString('householdName', 'My Household'); // Placeholder
-
-    // Navigate back to main app - this will trigger the splash screen logic
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    // Show privacy onboarding before entering main app
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => PrivacyOnboardingScreen()),
+    );
   }
 
   void _createHousehold() async {
@@ -49,19 +52,94 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
     }
 
     setState(() => _isCreating = true);
+    await Future.delayed(Duration(seconds: 2));
 
-    // TODO: Implement actual create logic with Supabase
-    await Future.delayed(Duration(seconds: 2)); // Simulate API call
-
-    setState(() => _isCreating = false);
-
-    // Set household preference to true
+    final inviteCode = _generateInviteCode();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasHousehold', true);
     await prefs.setString('householdName', _householdNameController.text);
+    await prefs.setString('householdId', 'generated-id');
+    await prefs.setString('inviteCode', inviteCode);
+    await prefs.setBool('isHouseholdCreator', true);
 
-    // Navigate back to main app - this will trigger the splash screen logic
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+    setState(() => _isCreating = false);
+    _showInviteCode(inviteCode);
+  }
+
+  String _generateInviteCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = DateTime.now().millisecondsSinceEpoch;
+    String code = '';
+    for (int i = 0; i < 6; i++) {
+      final index = (random * (i + 1)) % chars.length;
+      code += chars[index.toInt()];
+    }
+    return code;
+  }
+
+  void _showInviteCode(String code) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text('Household Created!'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Share this code with your housemates:'),
+                SizedBox(height: 20),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF6366F1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    code,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF6366F1),
+                      letterSpacing: 8,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Code copied to clipboard'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.copy),
+                  label: Text('Copy Code'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PrivacyOnboardingScreen(),
+                    ),
+                  );
+                },
+                child: Text('Continue'),
+              ),
+            ],
+          ),
+    );
   }
 
   void _showError(String message) {
@@ -86,16 +164,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Back button
-                IconButton(
-                  icon: Icon(Icons.arrow_back, size: 28),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                ),
-
-                SizedBox(height: 20),
-
-                // Title
+                SizedBox(height: 40),
                 Text(
                   'Set Up Your\nHousehold',
                   style: TextStyle(
@@ -105,14 +174,11 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                     height: 1.2,
                   ),
                 ),
-
                 SizedBox(height: 12),
-
                 Text(
-                  'Create a new household or join an existing one',
+                  'Create a household focused on respectful living',
                   style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                 ),
-
                 SizedBox(height: 40),
 
                 // Join Household Card
@@ -162,9 +228,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                             ),
                           ],
                         ),
-
                         SizedBox(height: 20),
-
                         Text(
                           'Enter the 6-character invite code',
                           style: TextStyle(
@@ -172,10 +236,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                             fontSize: 16,
                           ),
                         ),
-
                         SizedBox(height: 16),
-
-                        // Invite code input
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
@@ -214,10 +275,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                             ],
                           ),
                         ),
-
                         SizedBox(height: 20),
-
-                        // Join button
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -327,9 +385,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                             ),
                           ],
                         ),
-
                         SizedBox(height: 20),
-
                         Text(
                           'Start your own household',
                           style: TextStyle(
@@ -337,10 +393,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                             fontSize: 16,
                           ),
                         ),
-
                         SizedBox(height: 16),
-
-                        // Household name input
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
@@ -367,10 +420,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                             ),
                           ),
                         ),
-
                         SizedBox(height: 20),
-
-                        // Create button
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -413,26 +463,26 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
 
                 SizedBox(height: 20),
 
-                // Info text
+                // Privacy note
                 Container(
                   padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.blue[50],
+                    color: Colors.green[50],
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        Icons.info_outline,
-                        color: Colors.blue[700],
+                        Icons.privacy_tip_outlined,
+                        color: Colors.green[700],
                         size: 20,
                       ),
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Free households support up to 4 members',
+                          'Privacy-first design. You control what you share.',
                           style: TextStyle(
-                            color: Colors.blue[700],
+                            color: Colors.green[700],
                             fontSize: 14,
                           ),
                         ),
