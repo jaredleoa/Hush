@@ -14,7 +14,7 @@ class HushHomePage extends StatefulWidget {
   _HushHomePageState createState() => _HushHomePageState();
 }
 
-class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver {
+class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver, TickerProviderStateMixin {
   bool _isQuietTime = false;
   QuietReason? _currentQuietReason;
   String _householdName = 'Loading...';
@@ -58,16 +58,35 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
     ),
   ];
 
+  // Animation controllers
+  AnimationController? _breathingController;
+  Animation<double>? _breathingAnimation;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadSettings();
+    _breathingController = AnimationController(
+      duration: const Duration(milliseconds: 3000),
+      vsync: this,
+    );
+    _breathingAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.1,
+    ).animate(CurvedAnimation(
+      parent: _breathingController,
+      curve: Curves.easeInOut,
+    ));
+    if (_isQuietTime) {
+      _breathingController?.repeat();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _breathingController?.dispose();
     super.dispose();
   }
 
@@ -92,6 +111,22 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
         shareActiveHours: prefs.getBool('shareActiveHours') ?? true,
         allowQuietHours: prefs.getBool('allowQuietHours') ?? true,
       );
+      
+      // Update the "You" entry in housemates with loaded settings
+      final youIndex = _housemates.indexWhere((h) => h.name == 'You');
+      if (youIndex != -1) {
+        _housemates[youIndex] = _housemates[youIndex].copyWith(
+          isQuietTime: _isQuietTime,
+          quietReason: _currentQuietReason,
+          sharingMode: _sharingMode,
+          quietStartTime: _isQuietTime ? DateTime.now() : null,
+        );
+      }
+      if (_isQuietTime) {
+        _breathingController?.repeat();
+      } else {
+        _breathingController?.stop();
+      }
     });
   }
 
@@ -120,6 +155,11 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
           quietStartTime: _isQuietTime ? DateTime.now() : null,
         );
       }
+      if (_isQuietTime) {
+        _breathingController?.repeat();
+      } else {
+        _breathingController?.stop();
+      }
     });
     
     _saveSettings();
@@ -146,6 +186,7 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
           quietStartTime: DateTime.now(),
         );
       }
+      _breathingController?.repeat();
     });
     
     _saveSettings();
@@ -283,26 +324,29 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
               Material(
                 color: Colors.white.withOpacity(0.2),
                 shape: CircleBorder(),
-                child: InkWell(
-                  onTap: _toggleQuietTime,
-                  onLongPress: _showQuietReasonDialog,
-                  customBorder: CircleBorder(),
-                  splashColor: (_isQuietTime 
-                      ? Color(0xFF4F46E5) 
-                      : Color(0xFF059669)).withOpacity(0.3),
-                  highlightColor: (_isQuietTime 
-                      ? Color(0xFF6366F1) 
-                      : Color(0xFF10B981)).withOpacity(0.2),
-                  splashFactory: InkRipple.splashFactory,
-                  child: AnimatedContainer(
-                    duration: Duration(milliseconds: 300),
-                    width: 200,
-                    height: 200,
-                    child: Center(
-                      child: Icon(
-                        _isQuietTime ? Icons.nights_stay : Icons.volume_up,
-                        color: Colors.white,
-                        size: 80,
+                child: ScaleTransition(
+                  scale: _isQuietTime ? _breathingAnimation ?? AlwaysStoppedAnimation(1.0) : AlwaysStoppedAnimation(1.0),
+                  child: InkWell(
+                    onTap: _toggleQuietTime,
+                    onLongPress: _showQuietReasonDialog,
+                    customBorder: CircleBorder(),
+                    splashColor: (_isQuietTime 
+                        ? Color(0xFF4F46E5) 
+                        : Color(0xFF059669)).withOpacity(0.3),
+                    highlightColor: (_isQuietTime 
+                        ? Color(0xFF6366F1) 
+                        : Color(0xFF10B981)).withOpacity(0.2),
+                    splashFactory: InkRipple.splashFactory,
+                    child: AnimatedContainer(
+                      duration: Duration(milliseconds: 300),
+                      width: 200,
+                      height: 200,
+                      child: Center(
+                        child: Icon(
+                          _isQuietTime ? Icons.nights_stay : Icons.volume_up,
+                          color: Colors.white,
+                          size: 80,
+                        ),
                       ),
                     ),
                   ),
@@ -310,40 +354,88 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
               ),
               SizedBox(height: 25),
 
-              // Go Invisible button with toggle functionality
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _sharingMode = _sharingMode == SharingMode.invisible 
-                        ? SharingMode.named 
-                        : SharingMode.invisible;
-                  });
-                  _saveSettings();
-                  HapticFeedback.lightImpact();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
+              // Enhanced Go Invisible button with better visual design
+              AnimatedContainer(
+                duration: Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _sharingMode == SharingMode.invisible 
+                        ? [Color(0xFF6366F1), Color(0xFF8B5CF6)]
+                        : [Colors.white.withOpacity(0.3), Colors.white.withOpacity(0.1)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _sharingMode == SharingMode.invisible 
-                          ? Icons.visibility 
-                          : Icons.visibility_off, 
-                      size: 20
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_sharingMode == SharingMode.invisible 
+                          ? Color(0xFF6366F1) 
+                          : Colors.white).withOpacity(0.3),
+                      blurRadius: 15,
+                      offset: Offset(0, 5),
                     ),
-                    SizedBox(width: 8),
-                    Text(_sharingMode == SharingMode.invisible 
-                        ? 'Go Visible' 
-                        : 'Go Invisible'),
                   ],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _sharingMode = _sharingMode == SharingMode.invisible 
+                            ? SharingMode.named 
+                            : SharingMode.invisible;
+                        
+                        // Update the "You" entry in housemates with new sharing mode
+                        final youIndex = _housemates.indexWhere((h) => h.name == 'You');
+                        if (youIndex != -1) {
+                          _housemates[youIndex] = _housemates[youIndex].copyWith(
+                            sharingMode: _sharingMode,
+                          );
+                        }
+                      });
+                      _saveSettings();
+                      HapticFeedback.mediumImpact();
+                    },
+                    borderRadius: BorderRadius.circular(30),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: Duration(milliseconds: 300),
+                            transitionBuilder: (Widget child, Animation<double> animation) {
+                              return ScaleTransition(scale: animation, child: child);
+                            },
+                            child: Icon(
+                              _sharingMode == SharingMode.invisible 
+                                  ? Icons.visibility 
+                                  : Icons.visibility_off,
+                              key: ValueKey(_sharingMode == SharingMode.invisible),
+                              size: 24,
+                              color: _sharingMode == SharingMode.invisible 
+                                  ? Colors.white 
+                                  : Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          AnimatedDefaultTextStyle(
+                            duration: Duration(milliseconds: 300),
+                            style: TextStyle(
+                              color: _sharingMode == SharingMode.invisible 
+                                  ? Colors.white 
+                                  : Colors.white.withOpacity(0.9),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            child: Text(_sharingMode == SharingMode.invisible 
+                                ? 'Go Visible' 
+                                : 'Go Invisible'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -354,8 +446,8 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
   }
 
   Widget _buildHousematesList() {
-    // Only show housemates who are sharing details
-    final visibleHousemates = _housemates.where((h) => h.shareDetails).toList();
+    // Only show housemates who are not in invisible mode
+    final visibleHousemates = _housemates.where((h) => h.sharingMode != SharingMode.invisible).toList();
     final hiddenCount = _housemates.length - visibleHousemates.length;
 
     return Expanded(
@@ -363,24 +455,49 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
         children: [
           if (hiddenCount > 0) ...[
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Container(
-                padding: EdgeInsets.all(12),
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 300),
+                padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0xFF6366F1).withOpacity(0.1),
+                      Color(0xFF8B5CF6).withOpacity(0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Color(0xFF6366F1).withOpacity(0.2),
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.visibility_off,
-                      size: 16,
-                      color: Colors.grey[600],
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF6366F1).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.visibility_off,
+                        size: 18,
+                        color: Color(0xFF6366F1),
+                      ),
                     ),
-                    SizedBox(width: 8),
-                    Text(
-                      '$hiddenCount housemate${hiddenCount > 1 ? 's' : ''} in private mode',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '$hiddenCount housemate${hiddenCount > 1 ? 's' : ''} in private mode',
+                        style: TextStyle(
+                          color: Color(0xFF6366F1),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -407,40 +524,65 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
     final needsQuiet = person.isQuietTime;
     final isAway = !person.isHome && _privacySettings.shareLocation;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300),
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 20,
+            offset: Offset(0, 4),
           ),
         ],
+        border: Border.all(
+          color: needsQuiet 
+              ? Color(0xFF6366F1).withOpacity(0.1)
+              : Color(0xFF10B981).withOpacity(0.1),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
-          Container(
-            width: 50,
-            height: 50,
+          // Enhanced avatar with subtle pulse animation for quiet users
+          AnimatedContainer(
+            duration: Duration(milliseconds: 300),
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
-                colors:
-                    needsQuiet
-                        ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                colors: needsQuiet
+                    ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                    : isAway 
+                        ? [Color(0xFF6B7280), Color(0xFF4B5563)]
                         : [Color(0xFF10B981), Color(0xFF059669)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: (needsQuiet 
+                      ? Color(0xFF6366F1) 
+                      : isAway 
+                          ? Color(0xFF6B7280)
+                          : Color(0xFF10B981)).withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
             child: Icon(
-              needsQuiet ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+              needsQuiet 
+                  ? Icons.volume_off_rounded 
+                  : isAway 
+                      ? Icons.location_off_rounded
+                      : Icons.volume_up_rounded,
               color: Colors.white,
-              size: 24,
+              size: 26,
             ),
           ),
           SizedBox(width: 16),
@@ -453,9 +595,10 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
                     Text(
                       person.name,
                       style: TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         fontSize: 18,
-                        color: Color(0xFF2D3142),
+                        color: Color(0xFF1F2937),
+                        letterSpacing: -0.5,
                       ),
                     ),
                     if (isAway) ...[
@@ -463,56 +606,91 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
                       Container(
                         padding: EdgeInsets.symmetric(
                           horizontal: 8,
-                          vertical: 2,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
+                          color: Color(0xFF6B7280).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Color(0xFF6B7280).withOpacity(0.2),
+                            width: 1,
+                          ),
                         ),
                         child: Text(
                           'Away',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey[700],
-                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF6B7280),
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ],
                   ],
                 ),
-                SizedBox(height: 4),
+                SizedBox(height: 6),
                 if (needsQuiet) 
                   Text(
                     person.quietReason?.displayName ?? 'Needs quiet time',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    style: TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 if (_privacySettings.shareActiveHours &&
                     person.generalActivity != null && !needsQuiet) ...[
-                  SizedBox(height: 2),
                   Text(
                     'Currently: ${person.generalActivity}',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    style: TextStyle(
+                      color: Color(0xFF9CA3AF),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ],
               ],
             ),
           ),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          // Enhanced status badge
+          AnimatedContainer(
+            duration: Duration(milliseconds: 300),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color:
-                  needsQuiet
-                      ? Color(0xFF6366F1).withOpacity(0.1)
-                      : Color(0xFF10B981).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: needsQuiet
+                    ? [Color(0xFF6366F1).withOpacity(0.15), Color(0xFF4F46E5).withOpacity(0.1)]
+                    : isAway
+                        ? [Color(0xFF6B7280).withOpacity(0.15), Color(0xFF4B5563).withOpacity(0.1)]
+                        : [Color(0xFF10B981).withOpacity(0.15), Color(0xFF059669).withOpacity(0.1)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: needsQuiet 
+                    ? Color(0xFF6366F1).withOpacity(0.2)
+                    : isAway
+                        ? Color(0xFF6B7280).withOpacity(0.2)
+                        : Color(0xFF10B981).withOpacity(0.2),
+                width: 1,
+              ),
             ),
             child: Text(
-              needsQuiet ? 'Quiet' : 'Available',
+              needsQuiet 
+                  ? 'Quiet' 
+                  : isAway 
+                      ? 'Away'
+                      : 'Available',
               style: TextStyle(
-                color: needsQuiet ? Color(0xFF4F46E5) : Color(0xFF059669),
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
+                color: needsQuiet 
+                    ? Color(0xFF4F46E5) 
+                    : isAway
+                        ? Color(0xFF4B5563)
+                        : Color(0xFF059669),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                letterSpacing: 0.5,
               ),
             ),
           ),
