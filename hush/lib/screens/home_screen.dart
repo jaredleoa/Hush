@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/privacy_settings.dart';
 import '../models/user_status.dart';
+import '../models/quiet_reason.dart';
+import '../models/sharing_mode.dart';
+import '../services/notification_service.dart';
 import 'privacy_settings_screen.dart';
 import 'household_setup_screen.dart';
 
@@ -11,39 +14,78 @@ class HushHomePage extends StatefulWidget {
   _HushHomePageState createState() => _HushHomePageState();
 }
 
-class _HushHomePageState extends State<HushHomePage> {
+class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver {
   bool _isQuietTime = false;
-  bool _isInvisible = false;
+  QuietReason? _currentQuietReason;
   String _householdName = 'Loading...';
   PrivacySettings _privacySettings = PrivacySettings();
+  SharingMode _sharingMode = SharingMode.named;
 
-  // Sample data - in real app this would come from backend
+  // Enhanced sample data with new features
   final List<UserStatus> _housemates = [
-    UserStatus(name: 'You', isQuietTime: false),
-    UserStatus(name: 'Alex', isQuietTime: true, generalActivity: 'resting'),
+    UserStatus(
+      name: 'You', 
+      isQuietTime: false,
+      sharingMode: SharingMode.named,
+    ),
+    UserStatus(
+      name: 'Alex', 
+      isQuietTime: true, 
+      quietReason: QuietReason.sleeping,
+      sharingMode: SharingMode.named,
+      generalActivity: 'resting',
+      quietStartTime: DateTime.now().subtract(Duration(hours: 1)),
+    ),
     UserStatus(
       name: 'Jordan',
       isQuietTime: false,
+      sharingMode: SharingMode.anonymous,
       isHome: false,
       generalActivity: 'away',
     ),
     UserStatus(
       name: 'Sam',
+      isQuietTime: true,
+      quietReason: QuietReason.working,
+      sharingMode: SharingMode.anonymous,
+      quietStartTime: DateTime.now().subtract(Duration(minutes: 30)),
+    ),
+    UserStatus(
+      name: 'Riley',
       isQuietTime: false,
+      sharingMode: SharingMode.invisible,
       shareDetails: false,
-    ), // This user is "invisible"
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Update notification service about app state
+    NotificationService().setAppState(state != AppLifecycleState.resumed);
   }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _householdName = prefs.getString('householdName') ?? 'My Household';
+      _isQuietTime = prefs.getBool('isQuietTime') ?? false;
+      _currentQuietReason = _isQuietTime 
+        ? QuietReason.values[prefs.getInt('quietReason') ?? 0]
+        : null;
+      _sharingMode = SharingMode.values[prefs.getInt('sharingMode') ?? 0];
       _privacySettings = PrivacySettings(
         shareDetailedStatus: prefs.getBool('shareDetailedStatus') ?? false,
         shareLocation: prefs.getBool('shareLocation') ?? false,
@@ -53,39 +95,117 @@ class _HushHomePageState extends State<HushHomePage> {
     });
   }
 
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isQuietTime', _isQuietTime);
+    if (_currentQuietReason != null) {
+      await prefs.setInt('quietReason', _currentQuietReason!.index);
+    }
+    await prefs.setInt('sharingMode', _sharingMode.index);
+  }
+
   void _toggleQuietTime() {
     setState(() {
       _isQuietTime = !_isQuietTime;
-      _housemates[0] = UserStatus(
-        name: 'You',
-        isQuietTime: _isQuietTime,
-        isHome: _housemates[0].isHome,
-        generalActivity: _isQuietTime ? 'resting' : 'active',
-        shareDetails: !_isInvisible,
-      );
+      if (!_isQuietTime) {
+        _currentQuietReason = null;
+      }
+      
+      // Update the "You" entry in housemates
+      final youIndex = _housemates.indexWhere((h) => h.name == 'You');
+      if (youIndex != -1) {
+        _housemates[youIndex] = _housemates[youIndex].copyWith(
+          isQuietTime: _isQuietTime,
+          quietReason: _currentQuietReason,
+          quietStartTime: _isQuietTime ? DateTime.now() : null,
+        );
+      }
     });
+    
+    _saveSettings();
     HapticFeedback.lightImpact();
+
+    // Send notifications to other housemates if app is in background
+    if (_isQuietTime) {
+      final quietHousemates = _housemates.where((h) => h.isQuietTime).toList();
+      NotificationService().sendQuietTimeNotification(quietHousemates);
+    }
   }
 
-  void _toggleInvisible() {
+  void _onQuietReasonSelected(QuietReason reason) {
     setState(() {
-      _isInvisible = !_isInvisible;
-      _housemates[0] = UserStatus(
-        name: 'You',
-        isQuietTime: _isQuietTime,
-        isHome: _housemates[0].isHome,
-        generalActivity:
-            _isInvisible ? null : (_isQuietTime ? 'resting' : 'active'),
-        shareDetails: !_isInvisible,
-      );
+      _currentQuietReason = reason;
+      _isQuietTime = true;
+      
+      // Update the "You" entry in housemates
+      final youIndex = _housemates.indexWhere((h) => h.name == 'You');
+      if (youIndex != -1) {
+        _housemates[youIndex] = _housemates[youIndex].copyWith(
+          isQuietTime: true,
+          quietReason: reason,
+          quietStartTime: DateTime.now(),
+        );
+      }
     });
+    
+    _saveSettings();
     HapticFeedback.lightImpact();
+
+    // Send notifications
+    final quietHousemates = _housemates.where((h) => h.isQuietTime).toList();
+    NotificationService().sendQuietTimeNotification(quietHousemates);
+  }
+
+  void _showQuietReasonDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) => AlertDialog(
+        backgroundColor: _isQuietTime ? Color(0xFF6366F1) : Color(0xFF10B981),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Select Quiet Reason',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: QuietReason.values.map((reason) {
+            return Container(
+              margin: EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListTile(
+                title: Text(
+                  reason.toString().split('.').last,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onQuietReasonSelected(reason);
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.white,
       body: Column(children: [_buildHeader(), _buildHousematesList()]),
     );
   }
@@ -149,30 +269,8 @@ class _HushHomePageState extends State<HushHomePage> {
               ),
               SizedBox(height: 30),
 
-              if (_isInvisible) ...[
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.visibility_off, color: Colors.white, size: 16),
-                      SizedBox(width: 8),
-                      Text(
-                        'Invisible Mode',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 20),
-              ],
-
               Text(
-                _isInvisible ? 'Private Mode' : 'Household Status',
+                'Household Status',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.95),
                   fontSize: 20,
@@ -181,98 +279,71 @@ class _HushHomePageState extends State<HushHomePage> {
               ),
               SizedBox(height: 30),
 
-              // Main status button
-              GestureDetector(
-                onTap: _toggleQuietTime,
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors:
-                          _isQuietTime
-                              ? [Color(0xFF818CF8), Color(0xFF6366F1)]
-                              : [Color(0xFF34D399), Color(0xFF10B981)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_isQuietTime
-                                ? Color(0xFF6366F1)
-                                : Color(0xFF10B981))
-                            .withOpacity(0.4),
-                        blurRadius: 30,
-                        spreadRadius: 10,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _isQuietTime
-                            ? Icons.volume_off_rounded
-                            : Icons.volume_up_rounded,
-                        size: 60,
+              // Simple clean toggle button with slower, themed ripple effect
+              Material(
+                color: Colors.white.withOpacity(0.2),
+                shape: CircleBorder(),
+                child: InkWell(
+                  onTap: _toggleQuietTime,
+                  onLongPress: _showQuietReasonDialog,
+                  customBorder: CircleBorder(),
+                  splashColor: (_isQuietTime 
+                      ? Color(0xFF4F46E5) 
+                      : Color(0xFF059669)).withOpacity(0.3),
+                  highlightColor: (_isQuietTime 
+                      ? Color(0xFF6366F1) 
+                      : Color(0xFF10B981)).withOpacity(0.2),
+                  splashFactory: InkRipple.splashFactory,
+                  child: AnimatedContainer(
+                    duration: Duration(milliseconds: 300),
+                    width: 200,
+                    height: 200,
+                    child: Center(
+                      child: Icon(
+                        _isQuietTime ? Icons.nights_stay : Icons.volume_up,
                         color: Colors.white,
+                        size: 80,
                       ),
-                      SizedBox(height: 12),
-                      Text(
-                        _isQuietTime ? 'Quiet Time' : 'Available',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        _isQuietTime ? 'Please be quiet' : 'Normal volume OK',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
-
               SizedBox(height: 25),
 
-              // Privacy toggle
-              GestureDetector(
-                onTap: _toggleInvisible,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(_isInvisible ? 0.3 : 0.2),
+              // Go Invisible button with toggle functionality
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _sharingMode = _sharingMode == SharingMode.invisible 
+                        ? SharingMode.named 
+                        : SharingMode.invisible;
+                  });
+                  _saveSettings();
+                  HapticFeedback.lightImpact();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.2),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
-                    border:
-                        _isInvisible
-                            ? Border.all(color: Colors.white, width: 2)
-                            : null,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _isInvisible ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        _isInvisible ? 'Go Visible' : 'Go Invisible',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _sharingMode == SharingMode.invisible 
+                          ? Icons.visibility 
+                          : Icons.visibility_off, 
+                      size: 20
+                    ),
+                    SizedBox(width: 8),
+                    Text(_sharingMode == SharingMode.invisible 
+                        ? 'Go Visible' 
+                        : 'Go Invisible'),
+                  ],
                 ),
               ),
             ],
@@ -411,14 +482,13 @@ class _HushHomePageState extends State<HushHomePage> {
                   ],
                 ),
                 SizedBox(height: 4),
-                Text(
-                  needsQuiet
-                      ? 'Needs quiet time'
-                      : 'Available for normal activity',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                ),
+                if (needsQuiet) 
+                  Text(
+                    person.quietReason?.displayName ?? 'Needs quiet time',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                  ),
                 if (_privacySettings.shareActiveHours &&
-                    person.generalActivity != null) ...[
+                    person.generalActivity != null && !needsQuiet) ...[
                   SizedBox(height: 2),
                   Text(
                     'Currently: ${person.generalActivity}',

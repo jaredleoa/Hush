@@ -18,7 +18,12 @@ class _PrivacyOnboardingScreenState extends State<PrivacyOnboardingScreen> {
     // Save privacy settings
     final settingsJson = _settings.toJson();
     for (String key in settingsJson.keys) {
-      await prefs.setBool(key, settingsJson[key]);
+      final value = settingsJson[key];
+      if (value is bool) {
+        await prefs.setBool(key, value);
+      } else if (value is int) {
+        await prefs.setInt(key, value);
+      }
     }
 
     Navigator.pushReplacement(
