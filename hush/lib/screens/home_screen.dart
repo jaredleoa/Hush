@@ -14,7 +14,8 @@ class HushHomePage extends StatefulWidget {
   _HushHomePageState createState() => _HushHomePageState();
 }
 
-class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver, TickerProviderStateMixin {
+class _HushHomePageState extends State<HushHomePage>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   bool _isQuietTime = false;
   QuietReason? _currentQuietReason;
   String _householdName = 'Loading...';
@@ -23,14 +24,10 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
 
   // Enhanced sample data with new features
   final List<UserStatus> _housemates = [
+    UserStatus(name: 'You', isQuietTime: false, sharingMode: SharingMode.named),
     UserStatus(
-      name: 'You', 
-      isQuietTime: false,
-      sharingMode: SharingMode.named,
-    ),
-    UserStatus(
-      name: 'Alex', 
-      isQuietTime: true, 
+      name: 'Alex',
+      isQuietTime: true,
       quietReason: QuietReason.sleeping,
       sharingMode: SharingMode.named,
       generalActivity: 'resting',
@@ -71,13 +68,9 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
       duration: const Duration(milliseconds: 3000),
       vsync: this,
     );
-    _breathingAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.1,
-    ).animate(CurvedAnimation(
-      parent: _breathingController,
-      curve: Curves.easeInOut,
-    ));
+    _breathingAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
+      CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut),
+    );
     if (_isQuietTime) {
       _breathingController?.repeat();
     }
@@ -101,9 +94,10 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
     setState(() {
       _householdName = prefs.getString('householdName') ?? 'My Household';
       _isQuietTime = prefs.getBool('isQuietTime') ?? false;
-      _currentQuietReason = _isQuietTime 
-        ? QuietReason.values[prefs.getInt('quietReason') ?? 0]
-        : null;
+      _currentQuietReason =
+          _isQuietTime
+              ? QuietReason.values[prefs.getInt('quietReason') ?? 0]
+              : null;
       _sharingMode = SharingMode.values[prefs.getInt('sharingMode') ?? 0];
       _privacySettings = PrivacySettings(
         shareDetailedStatus: prefs.getBool('shareDetailedStatus') ?? false,
@@ -111,7 +105,7 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
         shareActiveHours: prefs.getBool('shareActiveHours') ?? true,
         allowQuietHours: prefs.getBool('allowQuietHours') ?? true,
       );
-      
+
       // Update the "You" entry in housemates with loaded settings
       final youIndex = _housemates.indexWhere((h) => h.name == 'You');
       if (youIndex != -1) {
@@ -145,7 +139,7 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
       if (!_isQuietTime) {
         _currentQuietReason = null;
       }
-      
+
       // Update the "You" entry in housemates
       final youIndex = _housemates.indexWhere((h) => h.name == 'You');
       if (youIndex != -1) {
@@ -161,7 +155,7 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
         _breathingController?.stop();
       }
     });
-    
+
     _saveSettings();
     HapticFeedback.lightImpact();
 
@@ -176,7 +170,7 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
     setState(() {
       _currentQuietReason = reason;
       _isQuietTime = true;
-      
+
       // Update the "You" entry in housemates
       final youIndex = _housemates.indexWhere((h) => h.name == 'You');
       if (youIndex != -1) {
@@ -188,7 +182,7 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
       }
       _breathingController?.repeat();
     });
-    
+
     _saveSettings();
     HapticFeedback.lightImpact();
 
@@ -201,45 +195,45 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
     showDialog(
       context: context,
       barrierColor: Colors.black.withOpacity(0.7),
-      builder: (context) => AlertDialog(
-        backgroundColor: _isQuietTime ? Color(0xFF6366F1) : Color(0xFF10B981),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Text(
-          'Select Quiet Reason',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor:
+                _isQuietTime ? Color(0xFF6366F1) : Color(0xFF10B981),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              'Select Quiet Reason',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:
+                  QuietReason.values.map((reason) {
+                    return Container(
+                      margin: EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        title: Text(
+                          reason.toString().split('.').last,
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _onQuietReasonSelected(reason);
+                        },
+                      ),
+                    );
+                  }).toList(),
+            ),
           ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: QuietReason.values.map((reason) {
-            return Container(
-              margin: EdgeInsets.symmetric(vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                title: Text(
-                  reason.toString().split('.').last,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _onQuietReasonSelected(reason);
-                },
-              ),
-            );
-          }).toList(),
-        ),
-      ),
     );
   }
 
@@ -325,17 +319,22 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
                 color: Colors.white.withOpacity(0.2),
                 shape: CircleBorder(),
                 child: ScaleTransition(
-                  scale: _isQuietTime ? _breathingAnimation ?? AlwaysStoppedAnimation(1.0) : AlwaysStoppedAnimation(1.0),
+                  scale:
+                      _isQuietTime
+                          ? _breathingAnimation ?? AlwaysStoppedAnimation(1.0)
+                          : AlwaysStoppedAnimation(1.0),
                   child: InkWell(
                     onTap: _toggleQuietTime,
                     onLongPress: _showQuietReasonDialog,
                     customBorder: CircleBorder(),
-                    splashColor: (_isQuietTime 
-                        ? Color(0xFF4F46E5) 
-                        : Color(0xFF059669)).withOpacity(0.3),
-                    highlightColor: (_isQuietTime 
-                        ? Color(0xFF6366F1) 
-                        : Color(0xFF10B981)).withOpacity(0.2),
+                    splashColor: (_isQuietTime
+                            ? Color(0xFF4F46E5)
+                            : Color(0xFF059669))
+                        .withOpacity(0.3),
+                    highlightColor: (_isQuietTime
+                            ? Color(0xFF6366F1)
+                            : Color(0xFF10B981))
+                        .withOpacity(0.2),
                     splashFactory: InkRipple.splashFactory,
                     child: AnimatedContainer(
                       duration: Duration(milliseconds: 300),
@@ -359,18 +358,23 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
                 duration: Duration(milliseconds: 300),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: _sharingMode == SharingMode.invisible 
-                        ? [Color(0xFF6366F1), Color(0xFF8B5CF6)]
-                        : [Colors.white.withOpacity(0.3), Colors.white.withOpacity(0.1)],
+                    colors:
+                        _sharingMode == SharingMode.invisible
+                            ? [Color(0xFF6366F1), Color(0xFF8B5CF6)]
+                            : [
+                              Colors.white.withOpacity(0.3),
+                              Colors.white.withOpacity(0.1),
+                            ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: (_sharingMode == SharingMode.invisible 
-                          ? Color(0xFF6366F1) 
-                          : Colors.white).withOpacity(0.3),
+                      color: (_sharingMode == SharingMode.invisible
+                              ? Color(0xFF6366F1)
+                              : Colors.white)
+                          .withOpacity(0.3),
                       blurRadius: 15,
                       offset: Offset(0, 5),
                     ),
@@ -381,16 +385,18 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
                   child: InkWell(
                     onTap: () {
                       setState(() {
-                        _sharingMode = _sharingMode == SharingMode.invisible 
-                            ? SharingMode.named 
-                            : SharingMode.invisible;
-                        
+                        _sharingMode =
+                            _sharingMode == SharingMode.invisible
+                                ? SharingMode.named
+                                : SharingMode.invisible;
+
                         // Update the "You" entry in housemates with new sharing mode
-                        final youIndex = _housemates.indexWhere((h) => h.name == 'You');
+                        final youIndex = _housemates.indexWhere(
+                          (h) => h.name == 'You',
+                        );
                         if (youIndex != -1) {
-                          _housemates[youIndex] = _housemates[youIndex].copyWith(
-                            sharingMode: _sharingMode,
-                          );
+                          _housemates[youIndex] = _housemates[youIndex]
+                              .copyWith(sharingMode: _sharingMode);
                         }
                       });
                       _saveSettings();
@@ -398,39 +404,54 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
                     },
                     borderRadius: BorderRadius.circular(30),
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 16,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           AnimatedSwitcher(
                             duration: Duration(milliseconds: 300),
-                            transitionBuilder: (Widget child, Animation<double> animation) {
-                              return ScaleTransition(scale: animation, child: child);
+                            transitionBuilder: (
+                              Widget child,
+                              Animation<double> animation,
+                            ) {
+                              return ScaleTransition(
+                                scale: animation,
+                                child: child,
+                              );
                             },
                             child: Icon(
-                              _sharingMode == SharingMode.invisible 
-                                  ? Icons.visibility 
+                              _sharingMode == SharingMode.invisible
+                                  ? Icons.visibility
                                   : Icons.visibility_off,
-                              key: ValueKey(_sharingMode == SharingMode.invisible),
+                              key: ValueKey(
+                                _sharingMode == SharingMode.invisible,
+                              ),
                               size: 24,
-                              color: _sharingMode == SharingMode.invisible 
-                                  ? Colors.white 
-                                  : Colors.white.withOpacity(0.9),
+                              color:
+                                  _sharingMode == SharingMode.invisible
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.9),
                             ),
                           ),
                           SizedBox(width: 12),
                           AnimatedDefaultTextStyle(
                             duration: Duration(milliseconds: 300),
                             style: TextStyle(
-                              color: _sharingMode == SharingMode.invisible 
-                                  ? Colors.white 
-                                  : Colors.white.withOpacity(0.9),
+                              color:
+                                  _sharingMode == SharingMode.invisible
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.9),
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
-                            child: Text(_sharingMode == SharingMode.invisible 
-                                ? 'Go Visible' 
-                                : 'Go Invisible'),
+                            child: Text(
+                              _sharingMode == SharingMode.invisible
+                                  ? 'Go Visible'
+                                  : 'Go Invisible',
+                            ),
                           ),
                         ],
                       ),
@@ -447,7 +468,10 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
 
   Widget _buildHousematesList() {
     // Only show housemates who are not in invisible mode
-    final visibleHousemates = _housemates.where((h) => h.sharingMode != SharingMode.invisible).toList();
+    final visibleHousemates =
+        _housemates
+            .where((h) => h.sharingMode != SharingMode.invisible)
+            .toList();
     final hiddenCount = _housemates.length - visibleHousemates.length;
 
     return Expanded(
@@ -539,9 +563,10 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
           ),
         ],
         border: Border.all(
-          color: needsQuiet 
-              ? Color(0xFF6366F1).withOpacity(0.1)
-              : Color(0xFF10B981).withOpacity(0.1),
+          color:
+              needsQuiet
+                  ? Color(0xFF6366F1).withOpacity(0.1)
+                  : Color(0xFF10B981).withOpacity(0.1),
           width: 1,
         ),
       ),
@@ -555,9 +580,10 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
-                colors: needsQuiet
-                    ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
-                    : isAway 
+                colors:
+                    needsQuiet
+                        ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                        : isAway
                         ? [Color(0xFF6B7280), Color(0xFF4B5563)]
                         : [Color(0xFF10B981), Color(0xFF059669)],
                 begin: Alignment.topLeft,
@@ -565,22 +591,23 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
               ),
               boxShadow: [
                 BoxShadow(
-                  color: (needsQuiet 
-                      ? Color(0xFF6366F1) 
-                      : isAway 
+                  color: (needsQuiet
+                          ? Color(0xFF6366F1)
+                          : isAway
                           ? Color(0xFF6B7280)
-                          : Color(0xFF10B981)).withOpacity(0.3),
+                          : Color(0xFF10B981))
+                      .withOpacity(0.3),
                   blurRadius: 12,
                   offset: Offset(0, 4),
                 ),
               ],
             ),
             child: Icon(
-              needsQuiet 
-                  ? Icons.volume_off_rounded 
-                  : isAway 
-                      ? Icons.location_off_rounded
-                      : Icons.volume_up_rounded,
+              needsQuiet
+                  ? Icons.volume_off_rounded
+                  : isAway
+                  ? Icons.location_off_rounded
+                  : Icons.volume_up_rounded,
               color: Colors.white,
               size: 26,
             ),
@@ -629,7 +656,7 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
                   ],
                 ),
                 SizedBox(height: 6),
-                if (needsQuiet) 
+                if (needsQuiet)
                   Text(
                     person.quietReason?.displayName ?? 'Needs quiet time',
                     style: TextStyle(
@@ -639,7 +666,8 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
                     ),
                   ),
                 if (_privacySettings.shareActiveHours &&
-                    person.generalActivity != null && !needsQuiet) ...[
+                    person.generalActivity != null &&
+                    !needsQuiet) ...[
                   Text(
                     'Currently: ${person.generalActivity}',
                     style: TextStyle(
@@ -658,34 +686,46 @@ class _HushHomePageState extends State<HushHomePage> with WidgetsBindingObserver
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: needsQuiet
-                    ? [Color(0xFF6366F1).withOpacity(0.15), Color(0xFF4F46E5).withOpacity(0.1)]
-                    : isAway
-                        ? [Color(0xFF6B7280).withOpacity(0.15), Color(0xFF4B5563).withOpacity(0.1)]
-                        : [Color(0xFF10B981).withOpacity(0.15), Color(0xFF059669).withOpacity(0.1)],
+                colors:
+                    needsQuiet
+                        ? [
+                          Color(0xFF6366F1).withOpacity(0.15),
+                          Color(0xFF4F46E5).withOpacity(0.1),
+                        ]
+                        : isAway
+                        ? [
+                          Color(0xFF6B7280).withOpacity(0.15),
+                          Color(0xFF4B5563).withOpacity(0.1),
+                        ]
+                        : [
+                          Color(0xFF10B981).withOpacity(0.15),
+                          Color(0xFF059669).withOpacity(0.1),
+                        ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: needsQuiet 
-                    ? Color(0xFF6366F1).withOpacity(0.2)
-                    : isAway
+                color:
+                    needsQuiet
+                        ? Color(0xFF6366F1).withOpacity(0.2)
+                        : isAway
                         ? Color(0xFF6B7280).withOpacity(0.2)
                         : Color(0xFF10B981).withOpacity(0.2),
                 width: 1,
               ),
             ),
             child: Text(
-              needsQuiet 
-                  ? 'Quiet' 
-                  : isAway 
-                      ? 'Away'
-                      : 'Available',
+              needsQuiet
+                  ? 'Quiet'
+                  : isAway
+                  ? 'Away'
+                  : 'Available',
               style: TextStyle(
-                color: needsQuiet 
-                    ? Color(0xFF4F46E5) 
-                    : isAway
+                color:
+                    needsQuiet
+                        ? Color(0xFF4F46E5)
+                        : isAway
                         ? Color(0xFF4B5563)
                         : Color(0xFF059669),
                 fontWeight: FontWeight.w700,
