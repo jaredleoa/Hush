@@ -55,7 +55,7 @@ class _HushHomePageState extends State<HushHomePage>
     ),
   ];
 
-  // Animation controllers
+  // Animation controllers - Fixed initialization
   AnimationController? _breathingController;
   Animation<double>? _breathingAnimation;
 
@@ -64,15 +64,19 @@ class _HushHomePageState extends State<HushHomePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadSettings();
+
+    // Initialize animation controller and animation
     _breathingController = AnimationController(
       duration: const Duration(milliseconds: 3000),
       vsync: this,
     );
     _breathingAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
-      CurvedAnimation(parent: _breathingController, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _breathingController!, curve: Curves.easeInOut),
     );
+
+    // Start animation if needed
     if (_isQuietTime) {
-      _breathingController?.repeat();
+      _breathingController?.repeat(reverse: true);
     }
   }
 
@@ -116,10 +120,12 @@ class _HushHomePageState extends State<HushHomePage>
           quietStartTime: _isQuietTime ? DateTime.now() : null,
         );
       }
-      if (_isQuietTime) {
-        _breathingController?.repeat();
-      } else {
-        _breathingController?.stop();
+
+      // Handle breathing animation after loading settings
+      if (_isQuietTime && _breathingController != null) {
+        _breathingController!.repeat(reverse: true);
+      } else if (_breathingController != null) {
+        _breathingController!.stop();
       }
     });
   }
@@ -149,10 +155,12 @@ class _HushHomePageState extends State<HushHomePage>
           quietStartTime: _isQuietTime ? DateTime.now() : null,
         );
       }
-      if (_isQuietTime) {
-        _breathingController?.repeat();
-      } else {
-        _breathingController?.stop();
+
+      // Handle breathing animation
+      if (_isQuietTime && _breathingController != null) {
+        _breathingController!.repeat(reverse: true);
+      } else if (_breathingController != null) {
+        _breathingController!.stop();
       }
     });
 
@@ -180,7 +188,11 @@ class _HushHomePageState extends State<HushHomePage>
           quietStartTime: DateTime.now(),
         );
       }
-      _breathingController?.repeat();
+
+      // Start breathing animation
+      if (_breathingController != null) {
+        _breathingController!.repeat(reverse: true);
+      }
     });
 
     _saveSettings();
@@ -222,7 +234,7 @@ class _HushHomePageState extends State<HushHomePage>
                       ),
                       child: ListTile(
                         title: Text(
-                          reason.toString().split('.').last,
+                          reason.displayName,
                           style: TextStyle(color: Colors.white, fontSize: 16),
                         ),
                         onTap: () {
@@ -318,38 +330,70 @@ class _HushHomePageState extends State<HushHomePage>
               Material(
                 color: Colors.white.withOpacity(0.2),
                 shape: CircleBorder(),
-                child: ScaleTransition(
-                  scale:
-                      _isQuietTime
-                          ? _breathingAnimation ?? AlwaysStoppedAnimation(1.0)
-                          : AlwaysStoppedAnimation(1.0),
-                  child: InkWell(
-                    onTap: _toggleQuietTime,
-                    onLongPress: _showQuietReasonDialog,
-                    customBorder: CircleBorder(),
-                    splashColor: (_isQuietTime
-                            ? Color(0xFF4F46E5)
-                            : Color(0xFF059669))
-                        .withOpacity(0.3),
-                    highlightColor: (_isQuietTime
-                            ? Color(0xFF6366F1)
-                            : Color(0xFF10B981))
-                        .withOpacity(0.2),
-                    splashFactory: InkRipple.splashFactory,
-                    child: AnimatedContainer(
-                      duration: Duration(milliseconds: 300),
-                      width: 200,
-                      height: 200,
-                      child: Center(
-                        child: Icon(
-                          _isQuietTime ? Icons.nights_stay : Icons.volume_up,
-                          color: Colors.white,
-                          size: 80,
+                child:
+                    _breathingAnimation != null
+                        ? ScaleTransition(
+                          scale:
+                              _isQuietTime
+                                  ? _breathingAnimation!
+                                  : AlwaysStoppedAnimation(1.0),
+                          child: InkWell(
+                            onTap: _toggleQuietTime,
+                            onLongPress: _showQuietReasonDialog,
+                            customBorder: CircleBorder(),
+                            splashColor: (_isQuietTime
+                                    ? Color(0xFF4F46E5)
+                                    : Color(0xFF059669))
+                                .withOpacity(0.3),
+                            highlightColor: (_isQuietTime
+                                    ? Color(0xFF6366F1)
+                                    : Color(0xFF10B981))
+                                .withOpacity(0.2),
+                            splashFactory: InkRipple.splashFactory,
+                            child: AnimatedContainer(
+                              duration: Duration(milliseconds: 300),
+                              width: 200,
+                              height: 200,
+                              child: Center(
+                                child: Icon(
+                                  _isQuietTime
+                                      ? Icons.nights_stay
+                                      : Icons.volume_up,
+                                  color: Colors.white,
+                                  size: 80,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                        : InkWell(
+                          onTap: _toggleQuietTime,
+                          onLongPress: _showQuietReasonDialog,
+                          customBorder: CircleBorder(),
+                          splashColor: (_isQuietTime
+                                  ? Color(0xFF4F46E5)
+                                  : Color(0xFF059669))
+                              .withOpacity(0.3),
+                          highlightColor: (_isQuietTime
+                                  ? Color(0xFF6366F1)
+                                  : Color(0xFF10B981))
+                              .withOpacity(0.2),
+                          splashFactory: InkRipple.splashFactory,
+                          child: AnimatedContainer(
+                            duration: Duration(milliseconds: 300),
+                            width: 200,
+                            height: 200,
+                            child: Center(
+                              child: Icon(
+                                _isQuietTime
+                                    ? Icons.nights_stay
+                                    : Icons.volume_up,
+                                color: Colors.white,
+                                size: 80,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-                ),
               ),
               SizedBox(height: 25),
 
@@ -360,7 +404,15 @@ class _HushHomePageState extends State<HushHomePage>
                   gradient: LinearGradient(
                     colors:
                         _sharingMode == SharingMode.invisible
-                            ? [Color(0xFF6366F1), Color(0xFF8B5CF6)]
+                            ? (_isQuietTime
+                                ? [
+                                  Color(0xFF6366F1),
+                                  Color(0xFF8B5CF6),
+                                ] // Purple when quiet + invisible
+                                : [
+                                  Color(0xFF34D399),
+                                  Color(0xFF059669),
+                                ]) // Green when available + invisible
                             : [
                               Colors.white.withOpacity(0.3),
                               Colors.white.withOpacity(0.1),
@@ -372,7 +424,9 @@ class _HushHomePageState extends State<HushHomePage>
                   boxShadow: [
                     BoxShadow(
                       color: (_sharingMode == SharingMode.invisible
-                              ? Color(0xFF6366F1)
+                              ? (_isQuietTime
+                                  ? Color(0xFF6366F1)
+                                  : Color(0xFF10B981))
                               : Colors.white)
                           .withOpacity(0.3),
                       blurRadius: 15,
