@@ -1,7 +1,12 @@
+// lib/screens/household_setup_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import '../models/subscription_tier.dart';
 import 'privacy_onboarding_screen.dart';
+import 'paywall_screen.dart';
+import '../services/subscription_service.dart';
 
 class HouseholdSetupScreen extends StatefulWidget {
   @override
@@ -13,6 +18,15 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
   final _householdNameController = TextEditingController();
   bool _isCreating = false;
   bool _isJoining = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize subscription service
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<SubscriptionService>(context, listen: false).initialize();
+    });
+  }
 
   @override
   void dispose() {
@@ -27,8 +41,27 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
       return;
     }
 
+    // Check if user can join (member limit check would happen on backend)
+    final subscriptionService = Provider.of<SubscriptionService>(
+      context,
+      listen: false,
+    );
+
     setState(() => _isJoining = true);
-    await Future.delayed(Duration(seconds: 2));
+
+    // Simulate checking if household is full
+    await Future.delayed(Duration(seconds: 1));
+
+    // Mock: Simulate household with 4 members (free tier limit)
+    final householdMemberCount = 4; // This would come from your backend
+
+    if (householdMemberCount >= subscriptionService.maxHouseholdMembers) {
+      setState(() => _isJoining = false);
+      _showMemberLimitDialog();
+      return;
+    }
+
+    await Future.delayed(Duration(seconds: 1)); // Simulate API call
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasHousehold', true);
@@ -66,6 +99,110 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
     _showInviteCode(inviteCode);
   }
 
+  void _showMemberLimitDialog() {
+    final subscriptionService = Provider.of<SubscriptionService>(
+      context,
+      listen: false,
+    );
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.group_off, color: Colors.orange, size: 28),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Household Full',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This household has reached the ${subscriptionService.maxHouseholdMembers} member limit for free accounts.',
+                  style: TextStyle(fontSize: 16),
+                ),
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.star, color: Colors.blue[700], size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Upgrade to Hush Basic',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '• Unlimited household members\n• Smart scheduling\n• Enhanced notifications\n• Only \$2.99/month',
+                        style: TextStyle(color: Colors.blue[700], fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Maybe Later'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showPaywall('unlimited_members');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Upgrade Now'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _showPaywall(String feature) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) => PaywallScreen(
+              feature: feature,
+              onUpgraded: () {
+                // Retry joining after upgrade
+                _joinHousehold();
+              },
+            ),
+      ),
+    );
+  }
+
   String _generateInviteCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = DateTime.now().millisecondsSinceEpoch;
@@ -78,6 +215,11 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
   }
 
   void _showInviteCode(String code) {
+    final subscriptionService = Provider.of<SubscriptionService>(
+      context,
+      listen: false,
+    );
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -121,6 +263,53 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                   },
                   icon: Icon(Icons.copy),
                   label: Text('Copy Code'),
+                ),
+                SizedBox(height: 16),
+                // Show member limit info
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color:
+                        subscriptionService.isPremium
+                            ? Colors.green[50]
+                            : Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color:
+                          subscriptionService.isPremium
+                              ? Colors.green[200]!
+                              : Colors.orange[200]!,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        subscriptionService.isPremium
+                            ? Icons.check_circle
+                            : Icons.info,
+                        color:
+                            subscriptionService.isPremium
+                                ? Colors.green[700]
+                                : Colors.orange[700],
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          subscriptionService.isPremium
+                              ? 'Unlimited members with your premium plan!'
+                              : 'Free plan: Up to ${subscriptionService.maxHouseholdMembers} members',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                subscriptionService.isPremium
+                                    ? Colors.green[700]
+                                    : Colors.orange[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -463,32 +652,49 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
 
                 SizedBox(height: 20),
 
-                // Privacy note
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.privacy_tip_outlined,
-                        color: Colors.green[700],
-                        size: 20,
+                // Privacy note with subscription info
+                Consumer<SubscriptionService>(
+                  builder: (context, subscription, child) {
+                    return Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color:
+                            subscription.isPremium
+                                ? Colors.purple[50]
+                                : Colors.green[50],
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Privacy-first design. You control what you share.',
-                          style: TextStyle(
-                            color: Colors.green[700],
-                            fontSize: 14,
+                      child: Row(
+                        children: [
+                          Icon(
+                            subscription.isPremium
+                                ? Icons.star
+                                : Icons.privacy_tip_outlined,
+                            color:
+                                subscription.isPremium
+                                    ? Colors.purple[700]
+                                    : Colors.green[700],
+                            size: 20,
                           ),
-                        ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              subscription.isPremium
+                                  ? '${subscription.currentTier.displayName} - Unlimited members & premium features'
+                                  : 'Free plan: Up to ${subscription.currentTier.maxHouseholdMembers} members. Privacy-first design.',
+                              style: TextStyle(
+                                color:
+                                    subscription.isPremium
+                                        ? Colors.purple[700]
+                                        : Colors.green[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
