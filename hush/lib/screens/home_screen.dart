@@ -1,3 +1,4 @@
+// lib/screens/home_screen.dart (Updated sections)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +13,8 @@ import '../services/notification_service.dart';
 import '../models/subscription_tier.dart';
 import 'privacy_settings_screen.dart';
 import 'household_setup_screen.dart';
+import '../widgets/quiet_request_button.dart';
+import '../widgets/too_loud_button.dart'; // NEW IMPORT
 
 class HushHomePage extends StatefulWidget {
   @override
@@ -95,6 +98,31 @@ class _HushHomePageState extends State<HushHomePage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Update notification service about app state
     NotificationService().setAppState(state != AppLifecycleState.resumed);
+  }
+
+  // Helper method to get available (non-quiet, at-home) housemates
+  List<UserStatus> get _availableHousemates {
+    return _housemates
+        .where(
+          (housemate) =>
+              housemate.name != 'You' && // Exclude the current user
+              !housemate.isQuietTime && // Not in quiet time
+              housemate.isHome && // Currently at home
+              housemate.sharingMode != SharingMode.invisible, // Not invisible
+        )
+        .toList();
+  }
+
+  // Helper method to get quiet housemates
+  List<UserStatus> get _quietHousemates {
+    return _housemates
+        .where(
+          (housemate) =>
+              housemate.isQuietTime &&
+              housemate.isHome &&
+              housemate.sharingMode != SharingMode.invisible,
+        )
+        .toList();
   }
 
   Future<void> _loadSettings() async {
@@ -401,6 +429,31 @@ class _HushHomePageState extends State<HushHomePage>
               ),
               SizedBox(height: 25),
 
+              // NEW: Action buttons section
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Quiet Request Button
+                  QuietRequestButton(
+                    onRequestSent: () {
+                      // Optional: Could show analytics about requests sent
+                    },
+                  ),
+
+                  SizedBox(width: 16),
+
+                  // NEW: Too Loud Button (only show if there are available housemates)
+                  if (_availableHousemates.isNotEmpty)
+                    TooLoudButton(
+                      onRequestSent: () {
+                        // Optional: Could track noise complaints for household harmony
+                      },
+                    ),
+                ],
+              ),
+
+              SizedBox(height: 15),
+
               // Enhanced Go Invisible button with better visual design
               AnimatedContainer(
                 duration: Duration(milliseconds: 300),
@@ -535,6 +588,65 @@ class _HushHomePageState extends State<HushHomePage>
     return Expanded(
       child: Column(
         children: [
+          // NEW: Noise management status section
+          if (_quietHousemates.isNotEmpty || _availableHousemates.isEmpty)
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue[50]!, Colors.blue[25]!],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blue[200]!, width: 1),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.volume_down,
+                      color: Colors.blue[700],
+                      size: 20,
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _quietHousemates.length == 1
+                              ? 'Someone needs quiet'
+                              : '${_quietHousemates.length} people need quiet',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue[800],
+                            fontSize: 14,
+                          ),
+                        ),
+                        if (_availableHousemates.isEmpty) ...[
+                          SizedBox(height: 4),
+                          Text(
+                            'No one available for noise notifications right now',
+                            style: TextStyle(
+                              color: Colors.blue[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.info_outline, color: Colors.blue[600], size: 18),
+                ],
+              ),
+            ),
+
           if (hiddenCount > 0) ...[
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
@@ -803,51 +915,56 @@ class _HushHomePageState extends State<HushHomePage>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Subscription Management
-            Consumer<SubscriptionService>(
-              builder: (context, subscription, child) {
-                return ListTile(
-                  leading: Icon(
-                    subscription.isPremium ? Icons.star : Icons.star_border,
-                    color: subscription.isPremium ? Colors.amber : null,
-                  ),
-                  title: Text(subscription.isPremium 
-                    ? 'Manage Subscription' 
-                    : 'Upgrade to Premium'),
-                  subtitle: Text(subscription.isPremium 
-                    ? subscription.currentTier.displayName
-                    : 'Unlock unlimited members & more'),
+      builder:
+          (context) => Container(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Subscription Management
+                Consumer<SubscriptionService>(
+                  builder: (context, subscription, child) {
+                    return ListTile(
+                      leading: Icon(
+                        subscription.isPremium ? Icons.star : Icons.star_border,
+                        color: subscription.isPremium ? Colors.amber : null,
+                      ),
+                      title: Text(
+                        subscription.isPremium
+                            ? 'Manage Subscription'
+                            : 'Upgrade to Premium',
+                      ),
+                      subtitle: Text(
+                        subscription.isPremium
+                            ? subscription.currentTier.displayName
+                            : 'Unlock unlimited members & more',
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => PaywallScreen()),
+                        );
+                      },
+                    );
+                  },
+                ),
+                Divider(),
+                // Privacy Settings
+                ListTile(
+                  leading: Icon(Icons.privacy_tip),
+                  title: Text('Privacy Settings'),
+                  subtitle: Text('Control what you share'),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => PaywallScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => PrivacySettingsScreen(),
+                      ),
                     );
                   },
-                );
-              },
-            ),
-            Divider(),
-            // Privacy Settings
-            ListTile(
-              leading: Icon(Icons.privacy_tip),
-              title: Text('Privacy Settings'),
-              subtitle: Text('Control what you share'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PrivacySettingsScreen(),
-                  ),
-                );
-              },
-            ),
+                ),
                 ListTile(
                   leading: Icon(Icons.vpn_key),
                   title: Text('Invite Code'),

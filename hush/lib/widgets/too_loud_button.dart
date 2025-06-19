@@ -1,33 +1,39 @@
-// lib/widgets/quiet_request_button.dart (Updated)
+// lib/widgets/too_loud_button.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/notification_service.dart';
-import '../services/noise_analytics_service.dart';
-import '../models/noise_feedback.dart';
 
-class QuietRequestButton extends StatefulWidget {
+class TooLoudButton extends StatefulWidget {
   final VoidCallback? onRequestSent;
 
-  const QuietRequestButton({Key? key, this.onRequestSent}) : super(key: key);
+  const TooLoudButton({Key? key, this.onRequestSent}) : super(key: key);
 
   @override
-  _QuietRequestButtonState createState() => _QuietRequestButtonState();
+  _TooLoudButtonState createState() => _TooLoudButtonState();
 }
 
-class _QuietRequestButtonState extends State<QuietRequestButton>
+class _TooLoudButtonState extends State<TooLoudButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+  late Animation<double> _shakeAnimation;
+  bool _isPressed = false;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 150),
+      duration: Duration(milliseconds: 200),
       vsync: this,
     );
+
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+
+    // Subtle shake animation for emphasis
+    _shakeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
     );
   }
 
@@ -38,23 +44,27 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
   }
 
   void _onTapDown(TapDownDetails details) {
+    setState(() => _isPressed = true);
     _animationController.forward();
   }
 
   void _onTapUp(TapUpDetails details) {
+    setState(() => _isPressed = false);
     _animationController.reverse();
   }
 
   void _onTapCancel() {
+    setState(() => _isPressed = false);
     _animationController.reverse();
   }
 
-  void _sendQuietRequest() async {
-    HapticFeedback.lightImpact();
+  void _sendTooLoudRequest() async {
+    HapticFeedback.mediumImpact();
 
-    // Show confirmation dialog
+    // Show confirmation dialog with gentle messaging
     final shouldSend = await showDialog<bool>(
       context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
       builder:
           (context) => AlertDialog(
             shape: RoundedRectangleBorder(
@@ -62,11 +72,11 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
             ),
             title: Row(
               children: [
-                Text('🤝', style: TextStyle(fontSize: 24)),
+                Text('🤫', style: TextStyle(fontSize: 24)),
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Request Quiet',
+                    'Too Loud?',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -77,10 +87,39 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Send an anonymous, gentle reminder to your housemates?',
+                  'Send a gentle, anonymous reminder to keep the noise down?',
                   style: TextStyle(fontSize: 16, height: 1.4),
                 ),
                 SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.volume_down,
+                        color: Colors.orange[700],
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'They\'ll see: "Someone has asked to please keep it down 🤫"',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.orange[700],
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 12),
                 Container(
                   padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -97,11 +136,10 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'They\'ll see: "Someone has requested quiet in common areas"',
+                          'This is completely anonymous and only goes to people who are currently available (not sleeping or away)',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             color: Colors.blue[700],
-                            fontStyle: FontStyle.italic,
                           ),
                         ),
                       ),
@@ -118,27 +156,21 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF6366F1),
+                  backgroundColor: Colors.orange[600],
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: Text('Send Request'),
+                child: Text('Send Reminder'),
               ),
             ],
           ),
     );
 
     if (shouldSend == true) {
-      // Send the request
-      await NotificationService().sendQuietRequest();
-
-      // Log analytics - assume 3 average recipients for quiet requests
-      await NoiseAnalyticsService.logNoiseFeedback(
-        NoiseComplaintType.quietRequest,
-        3,
-      );
+      // Send the notification
+      await NotificationService().sendTooLoudNotification();
 
       // Show success feedback
       if (mounted) {
@@ -148,15 +180,15 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
               children: [
                 Icon(Icons.check_circle, color: Colors.white, size: 20),
                 SizedBox(width: 8),
-                Text('Quiet request sent anonymously'),
+                Text('Anonymous noise reminder sent'),
               ],
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: Colors.orange[600],
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
-            duration: Duration(seconds: 2),
+            duration: Duration(seconds: 3),
           ),
         );
 
@@ -171,9 +203,9 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
-      onTap: _sendQuietRequest,
+      onTap: _sendTooLoudRequest,
       child: AnimatedBuilder(
-        animation: _scaleAnimation,
+        animation: _animationController,
         builder: (context, child) {
           return Transform.scale(
             scale: _scaleAnimation.value,
@@ -183,24 +215,27 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFFFFA574), Color(0xFFFF6B9D)],
+                  colors:
+                      _isPressed
+                          ? [Colors.orange[400]!, Colors.orange[600]!]
+                          : [Colors.orange[300]!, Colors.orange[500]!],
                 ),
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0xFFFF6B9D).withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
+                    color: Colors.orange.withOpacity(0.3),
+                    blurRadius: _isPressed ? 4 : 8,
+                    offset: Offset(0, _isPressed ? 2 : 4),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('🤝', style: TextStyle(fontSize: 18)),
+                  Text('🤫', style: TextStyle(fontSize: 18)),
                   SizedBox(width: 8),
                   Text(
-                    'Request Quiet',
+                    'Too Loud',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
