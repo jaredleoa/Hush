@@ -18,9 +18,8 @@ dependencies:
   shared_preferences: ^2.5.3
   provider: ^6.1.5
 
-  # NEW: Subscription management
-  purchases_flutter: ^6.29.11  # RevenueCat for subscriptions
-  in_app_purchase: ^3.1.13     # Apple/Google in-app purchases
+  # FIXED: Use only RevenueCat for subscriptions (removes conflict)
+  purchases_flutter: ^6.30.2
 
 dev_dependencies:
   flutter_test:

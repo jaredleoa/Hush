@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../models/subscription_tier.dart';
 
-
 class SubscriptionService extends ChangeNotifier {
   static final SubscriptionService _instance = SubscriptionService._internal();
   factory SubscriptionService() => _instance;
@@ -27,19 +26,17 @@ class SubscriptionService extends ChangeNotifier {
 
       // TODO: Replace with your actual RevenueCat API keys
       // Get these from https://app.revenuecat.com
-      const apiKey = 'your_revenuecat_api_key_here';
+      // For now, we'll skip the initialization to avoid errors in development
 
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        await Purchases.configure(PurchasesConfiguration(apiKey));
-      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await Purchases.configure(PurchasesConfiguration(apiKey));
-      }
+      // Uncomment these lines when you have your RevenueCat API keys:
+      // const apiKey = 'your_revenuecat_api_key_here';
+      // await Purchases.configure(PurchasesConfiguration(apiKey));
 
       // Load subscription status from local storage
       await _loadSubscriptionFromStorage();
 
-      // Check for any active subscriptions on the platform
-      await _checkRemoteSubscription();
+      // Skip remote subscription check in development
+      // await _checkRemoteSubscription();
 
       _isInitialized = true;
     } catch (e) {
@@ -55,22 +52,16 @@ class SubscriptionService extends ChangeNotifier {
   Future<void> _loadSubscriptionFromStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final subscriptionJson = prefs.getString('user_subscription');
+      final tierIndex = prefs.getInt('subscription_tier') ?? 0;
+      final isActive = prefs.getBool('subscription_active') ?? false;
+      final expiresAtString = prefs.getString('subscription_expires');
 
-      if (subscriptionJson != null) {
-        // In a real app, you'd parse the JSON
-        // For now, just check if they have a saved tier
-        final tierIndex = prefs.getInt('subscription_tier') ?? 0;
-        final isActive = prefs.getBool('subscription_active') ?? false;
-        final expiresAtString = prefs.getString('subscription_expires');
-
-        _currentSubscription = UserSubscription(
-          tier: SubscriptionTier.values[tierIndex],
-          isActive: isActive,
-          expiresAt:
-              expiresAtString != null ? DateTime.parse(expiresAtString) : null,
-        );
-      }
+      _currentSubscription = UserSubscription(
+        tier: SubscriptionTier.values[tierIndex],
+        isActive: isActive,
+        expiresAt:
+            expiresAtString != null ? DateTime.parse(expiresAtString) : null,
+      );
     } catch (e) {
       print('Error loading subscription from storage: $e');
     }
@@ -108,12 +99,14 @@ class SubscriptionService extends ChangeNotifier {
         _currentSubscription = UserSubscription(
           tier: tier,
           isActive: true,
-          expiresAt: customerInfo.latestExpirationDate != null 
-              ? DateTime.parse(customerInfo.latestExpirationDate!)
-              : null,
-          purchasedAt: customerInfo.firstSeen != null 
-              ? DateTime.parse(customerInfo.firstSeen!)
-              : DateTime.now(),
+          expiresAt:
+              customerInfo.latestExpirationDate != null
+                  ? DateTime.parse(customerInfo.latestExpirationDate!)
+                  : null,
+          purchasedAt:
+              customerInfo.firstSeen != null
+                  ? DateTime.parse(customerInfo.firstSeen!)
+                  : DateTime.now(),
         );
 
         await _saveSubscriptionToStorage();
@@ -145,22 +138,24 @@ class SubscriptionService extends ChangeNotifier {
       final productId = _getProductIdForTier(tier);
       if (productId == null) return false;
 
-      final customerInfo = await Purchases.purchaseProduct(productId);
+      // In development, just simulate the purchase
+      return await simulatePurchase(tier);
 
-      if (customerInfo.activeSubscriptions.isNotEmpty) {
-        _currentSubscription = UserSubscription(
-          tier: tier,
-          isActive: true,
-          expiresAt: customerInfo.latestExpirationDate != null 
-              ? DateTime.tryParse(customerInfo.latestExpirationDate!) ?? DateTime.now().add(const Duration(days: 30))
-              : null,
-          purchasedAt: DateTime.now(),
-        );
-
-        await _saveSubscriptionToStorage();
-        notifyListeners();
-        return true;
-      }
+      // Uncomment this when RevenueCat is properly configured:
+      // final customerInfo = await Purchases.purchaseProduct(productId);
+      // if (customerInfo.activeSubscriptions.isNotEmpty) {
+      //   _currentSubscription = UserSubscription(
+      //     tier: tier,
+      //     isActive: true,
+      //     expiresAt: customerInfo.latestExpirationDate != null
+      //         ? DateTime.tryParse(customerInfo.latestExpirationDate!) ?? DateTime.now().add(const Duration(days: 30))
+      //         : null,
+      //     purchasedAt: DateTime.now(),
+      //   );
+      //   await _saveSubscriptionToStorage();
+      //   notifyListeners();
+      //   return true;
+      // }
     } catch (e) {
       print('Purchase failed: $e');
     }
@@ -187,8 +182,13 @@ class SubscriptionService extends ChangeNotifier {
     if (!_isInitialized) await initialize();
 
     try {
-      final customerInfo = await Purchases.restorePurchases();
-      await _checkRemoteSubscription();
+      // In development, just reload from storage
+      await _loadSubscriptionFromStorage();
+
+      // Uncomment when RevenueCat is configured:
+      // final customerInfo = await Purchases.restorePurchases();
+      // await _checkRemoteSubscription();
+
       notifyListeners();
     } catch (e) {
       print('Restore failed: $e');
@@ -217,7 +217,7 @@ class SubscriptionService extends ChangeNotifier {
   int get maxHouseholdMembers => _currentSubscription.tier.maxHouseholdMembers;
 
   // FOR TESTING: Simulate subscription purchase
-  Future<void> simulatePurchase(SubscriptionTier tier) async {
+  Future<bool> simulatePurchase(SubscriptionTier tier) async {
     _currentSubscription = UserSubscription(
       tier: tier,
       isActive: true,
@@ -227,6 +227,7 @@ class SubscriptionService extends ChangeNotifier {
 
     await _saveSubscriptionToStorage();
     notifyListeners();
+    return true;
   }
 
   // FOR TESTING: Reset to free tier
