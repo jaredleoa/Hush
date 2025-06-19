@@ -1,9 +1,7 @@
-// lib/widgets/quiet_request_button.dart (Updated)
+// lib/widgets/quiet_request_button.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/notification_service.dart';
-import '../services/noise_analytics_service.dart';
-import '../models/noise_feedback.dart';
 
 class QuietRequestButton extends StatefulWidget {
   final VoidCallback? onRequestSent;
@@ -133,12 +131,6 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
     if (shouldSend == true) {
       // Send the request
       await NotificationService().sendQuietRequest();
-
-      // Log analytics - assume 3 average recipients for quiet requests
-      await NoiseAnalyticsService.logNoiseFeedback(
-        NoiseComplaintType.quietRequest,
-        3,
-      );
 
       // Show success feedback
       if (mounted) {

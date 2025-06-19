@@ -1,19 +1,12 @@
-// lib/widgets/too_loud_button.dart (Updated with analytics)
+// lib/widgets/too_loud_button.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/notification_service.dart';
-import '../services/noise_analytics_service.dart';
-import '../models/noise_feedback.dart';
 
 class TooLoudButton extends StatefulWidget {
   final VoidCallback? onRequestSent;
-  final int? availableHousemateCount; // Pass this to track exact recipient count
 
-  const TooLoudButton({
-    Key? key,
-    this.onRequestSent,
-    this.availableHousemateCount,
-  }) : super(key: key);
+  const TooLoudButton({Key? key, this.onRequestSent}) : super(key: key);
 
   @override
   _TooLoudButtonState createState() => _TooLoudButtonState();
@@ -32,14 +25,10 @@ class _TooLoudButtonState extends State<TooLoudButton>
       duration: Duration(milliseconds: 200),
       vsync: this,
     );
-    
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.95,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
+
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -65,13 +54,15 @@ class _TooLoudButtonState extends State<TooLoudButton>
 
   void _sendTooLoudRequest() async {
     HapticFeedback.mediumImpact();
-    
+
     // Show confirmation dialog with gentle messaging
     final shouldSend = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black.withOpacity(0.7),
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
         title: Row(
           children: [
             Text('🤫', style: TextStyle(fontSize: 24)),
@@ -102,7 +93,11 @@ class _TooLoudButtonState extends State<TooLoudButton>
               ),
               child: Row(
                 children: [
-                  Icon(Icons.volume_down, color: Colors.orange[700], size: 20),
+                  Icon(
+                    Icons.volume_down,
+                    color: Colors.orange[700],
+                    size: 20,
+                  ),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -126,13 +121,15 @@ class _TooLoudButtonState extends State<TooLoudButton>
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue[700],
+                    size: 20,
+                  ),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      widget.availableHousemateCount != null
-                          ? 'This will notify ${widget.availableHousemateCount} available housemate${widget.availableHousemateCount! > 1 ? 's' : ''}'
-                          : 'This is completely anonymous and only goes to people who are currently available (not sleeping or away)',
+                      'This is completely anonymous and only goes to people who are currently available (not sleeping or away)',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.blue[700],
@@ -167,13 +164,7 @@ class _TooLoudButtonState extends State<TooLoudButton>
     if (shouldSend == true) {
       // Send the notification
       await NotificationService().sendTooLoudNotification();
-      
-      // Log analytics with actual recipient count
-      await NoiseAnalyticsService.logNoiseFeedback(
-        NoiseComplaintType.tooLoud, 
-        widget.availableHousemateCount ?? 1
-      );
-      
+
       // Show success feedback
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -193,7 +184,7 @@ class _TooLoudButtonState extends State<TooLoudButton>
             duration: Duration(seconds: 3),
           ),
         );
-        
+
         widget.onRequestSent?.call();
       }
     }
@@ -218,14 +209,8 @@ class _TooLoudButtonState extends State<TooLoudButton>
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: _isPressed
-                      ? [
-                          Colors.orange[400]!,
-                          Colors.orange[600]!,
-                        ]
-                      : [
-                          Colors.orange[300]!,
-                          Colors.orange[500]!,
-                        ],
+                      ? [Colors.orange[400]!, Colors.orange[600]!]
+                      : [Colors.orange[300]!, Colors.orange[500]!],
                 ),
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
