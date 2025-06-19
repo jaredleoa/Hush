@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/subscription_service.dart';
+import 'paywall_screen.dart';
 import '../models/privacy_settings.dart';
 import '../models/user_status.dart';
 import '../models/quiet_reason.dart';
 import '../models/sharing_mode.dart';
 import '../services/notification_service.dart';
+import '../models/subscription_tier.dart';
 import 'privacy_settings_screen.dart';
 import 'household_setup_screen.dart';
 
@@ -799,26 +803,51 @@ class _HushHomePageState extends State<HushHomePage>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder:
-          (context) => Container(
-            padding: EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: Icon(Icons.privacy_tip),
-                  title: Text('Privacy Settings'),
-                  subtitle: Text('Control what you share'),
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Subscription Management
+            Consumer<SubscriptionService>(
+              builder: (context, subscription, child) {
+                return ListTile(
+                  leading: Icon(
+                    subscription.isPremium ? Icons.star : Icons.star_border,
+                    color: subscription.isPremium ? Colors.amber : null,
+                  ),
+                  title: Text(subscription.isPremium 
+                    ? 'Manage Subscription' 
+                    : 'Upgrade to Premium'),
+                  subtitle: Text(subscription.isPremium 
+                    ? subscription.currentTier.displayName
+                    : 'Unlock unlimited members & more'),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => PrivacySettingsScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => PaywallScreen()),
                     );
                   },
-                ),
+                );
+              },
+            ),
+            Divider(),
+            // Privacy Settings
+            ListTile(
+              leading: Icon(Icons.privacy_tip),
+              title: Text('Privacy Settings'),
+              subtitle: Text('Control what you share'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PrivacySettingsScreen(),
+                  ),
+                );
+              },
+            ),
                 ListTile(
                   leading: Icon(Icons.vpn_key),
                   title: Text('Invite Code'),
@@ -833,10 +862,12 @@ class _HushHomePageState extends State<HushHomePage>
                   onTap: () async {
                     final prefs = await SharedPreferences.getInstance();
                     final code = prefs.getString('inviteCode') ?? '';
-                    Clipboard.setData(ClipboardData(text: code));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Invite code copied!')),
-                    );
+                    await Clipboard.setData(ClipboardData(text: code));
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Invite code copied!')),
+                      );
+                    }
                   },
                 ),
                 ListTile(

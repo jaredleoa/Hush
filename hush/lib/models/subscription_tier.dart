@@ -10,7 +10,7 @@ extension SubscriptionTierExtension on SubscriptionTier {
         return 'Hush Basic';
       case SubscriptionTier.pro:
         return 'Hush Pro';
-      case SubscriptionTier.premium:
+      case SubscriptionTier.premium: // This should match the enum value
         return 'Hush Premium';
     }
   }

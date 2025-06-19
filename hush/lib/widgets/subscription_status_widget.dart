@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/subscription_service.dart';
 import '../screens/paywall_screen.dart';
+import '../models/subscription_tier.dart';
 
 class SubscriptionStatusWidget extends StatelessWidget {
   const SubscriptionStatusWidget({Key? key}) : super(key: key);
@@ -55,7 +56,7 @@ class SubscriptionStatusWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${subscription.currentTier.name[0].toUpperCase()}${subscription.currentTier.name.substring(1)}',
+                  subscription.currentTier.displayName,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF6366F1),

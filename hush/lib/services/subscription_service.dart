@@ -1,7 +1,6 @@
 // lib/services/subscription_service.dart
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:purchases_flutter/purchases_flutter.dart';
 import '../models/subscription_tier.dart';
 
 class SubscriptionService extends ChangeNotifier {
@@ -21,27 +20,11 @@ class SubscriptionService extends ChangeNotifier {
     if (_isInitialized) return;
 
     try {
-      // Initialize RevenueCat (you'll need to set up your API keys)
-      await Purchases.setLogLevel(LogLevel.debug);
-
-      // TODO: Replace with your actual RevenueCat API keys
-      // Get these from https://app.revenuecat.com
-      // For now, we'll skip the initialization to avoid errors in development
-
-      // Uncomment these lines when you have your RevenueCat API keys:
-      // const apiKey = 'your_revenuecat_api_key_here';
-      // await Purchases.configure(PurchasesConfiguration(apiKey));
-
-      // Load subscription status from local storage
+      // Load subscription status from local storage only
       await _loadSubscriptionFromStorage();
-
-      // Skip remote subscription check in development
-      // await _checkRemoteSubscription();
-
       _isInitialized = true;
     } catch (e) {
       print('Failed to initialize subscription service: $e');
-      // Fall back to free tier
       _currentSubscription = UserSubscription.free();
     }
 
@@ -85,110 +68,20 @@ class SubscriptionService extends ChangeNotifier {
     }
   }
 
-  // Check subscription status with RevenueCat
-  Future<void> _checkRemoteSubscription() async {
-    try {
-      final customerInfo = await Purchases.getCustomerInfo();
-
-      // Check if user has any active entitlements
-      if (customerInfo.activeSubscriptions.isNotEmpty) {
-        // Determine tier based on active subscription
-        final activeSubscription = customerInfo.activeSubscriptions.first;
-        SubscriptionTier tier = _mapProductIdToTier(activeSubscription);
-
-        _currentSubscription = UserSubscription(
-          tier: tier,
-          isActive: true,
-          expiresAt:
-              customerInfo.latestExpirationDate != null
-                  ? DateTime.parse(customerInfo.latestExpirationDate!)
-                  : null,
-          purchasedAt:
-              customerInfo.firstSeen != null
-                  ? DateTime.parse(customerInfo.firstSeen!)
-                  : DateTime.now(),
-        );
-
-        await _saveSubscriptionToStorage();
-      }
-    } catch (e) {
-      print('Error checking remote subscription: $e');
-    }
-  }
-
-  // Map RevenueCat product IDs to subscription tiers
-  SubscriptionTier _mapProductIdToTier(String productId) {
-    switch (productId) {
-      case 'hush_basic_monthly':
-        return SubscriptionTier.basic;
-      case 'hush_pro_monthly':
-        return SubscriptionTier.pro;
-      case 'hush_premium_monthly':
-        return SubscriptionTier.premium;
-      default:
-        return SubscriptionTier.free;
-    }
-  }
-
-  // Purchase a subscription
+  // Purchase a subscription (mock implementation)
   Future<bool> purchaseSubscription(SubscriptionTier tier) async {
     if (!_isInitialized) await initialize();
 
-    try {
-      final productId = _getProductIdForTier(tier);
-      if (productId == null) return false;
-
-      // In development, just simulate the purchase
-      return await simulatePurchase(tier);
-
-      // Uncomment this when RevenueCat is properly configured:
-      // final customerInfo = await Purchases.purchaseProduct(productId);
-      // if (customerInfo.activeSubscriptions.isNotEmpty) {
-      //   _currentSubscription = UserSubscription(
-      //     tier: tier,
-      //     isActive: true,
-      //     expiresAt: customerInfo.latestExpirationDate != null
-      //         ? DateTime.tryParse(customerInfo.latestExpirationDate!) ?? DateTime.now().add(const Duration(days: 30))
-      //         : null,
-      //     purchasedAt: DateTime.now(),
-      //   );
-      //   await _saveSubscriptionToStorage();
-      //   notifyListeners();
-      //   return true;
-      // }
-    } catch (e) {
-      print('Purchase failed: $e');
-    }
-
-    return false;
+    // For now, just simulate the purchase
+    return await simulatePurchase(tier);
   }
 
-  // Get product ID for subscription tier
-  String? _getProductIdForTier(SubscriptionTier tier) {
-    switch (tier) {
-      case SubscriptionTier.basic:
-        return 'hush_basic_monthly';
-      case SubscriptionTier.pro:
-        return 'hush_pro_monthly';
-      case SubscriptionTier.premium:
-        return 'hush_premium_monthly';
-      default:
-        return null;
-    }
-  }
-
-  // Restore purchases
+  // Restore purchases (mock implementation)
   Future<void> restorePurchases() async {
     if (!_isInitialized) await initialize();
 
     try {
-      // In development, just reload from storage
       await _loadSubscriptionFromStorage();
-
-      // Uncomment when RevenueCat is configured:
-      // final customerInfo = await Purchases.restorePurchases();
-      // await _checkRemoteSubscription();
-
       notifyListeners();
     } catch (e) {
       print('Restore failed: $e');

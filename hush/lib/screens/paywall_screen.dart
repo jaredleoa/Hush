@@ -379,13 +379,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
         listen: false,
       );
 
-      // For testing purposes, simulate the purchase
-      await subscriptionService.simulatePurchase(selectedTier);
+      // Use the simulate purchase method since we don't have real payments yet
+      final success = await subscriptionService.simulatePurchase(selectedTier);
 
-      // In production, this would be:
-      // final success = await subscriptionService.purchaseSubscription(selectedTier);
-
-      if (mounted) {
+      if (mounted && success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
