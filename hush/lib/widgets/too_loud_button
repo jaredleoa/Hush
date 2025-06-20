@@ -16,17 +16,15 @@ class _TooLoudButtonState extends State<TooLoudButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
-  bool _isPressed = false;
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 200),
+      duration: Duration(milliseconds: 150),
       vsync: this,
     );
-
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
   }
@@ -38,17 +36,14 @@ class _TooLoudButtonState extends State<TooLoudButton>
   }
 
   void _onTapDown(TapDownDetails details) {
-    setState(() => _isPressed = true);
     _animationController.forward();
   }
 
   void _onTapUp(TapUpDetails details) {
-    setState(() => _isPressed = false);
     _animationController.reverse();
   }
 
   void _onTapCancel() {
-    setState(() => _isPressed = false);
     _animationController.reverse();
   }
 
@@ -58,19 +53,30 @@ class _TooLoudButtonState extends State<TooLoudButton>
     // Show confirmation dialog with gentle messaging
     final shouldSend = await showDialog<bool>(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.7),
+      barrierColor: Colors.black.withOpacity(0.5),
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
         title: Row(
           children: [
-            Text('🤫', style: TextStyle(fontSize: 24)),
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.volume_off_rounded,
+                color: Colors.orange[700],
+                size: 24,
+              ),
+            ),
             SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Too Loud?',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -87,21 +93,23 @@ class _TooLoudButtonState extends State<TooLoudButton>
             Container(
               padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange[50],
+                color: Colors.orange.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange[200]!),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.2),
+                ),
               ),
               child: Row(
                 children: [
                   Icon(
-                    Icons.volume_down,
+                    Icons.chat_bubble_outline,
                     color: Colors.orange[700],
-                    size: 20,
+                    size: 18,
                   ),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'They\'ll see: "Someone has asked to please keep it down 🤫"',
+                      '"Someone has asked to please keep it down"',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.orange[700],
@@ -124,12 +132,12 @@ class _TooLoudButtonState extends State<TooLoudButton>
                   Icon(
                     Icons.info_outline,
                     color: Colors.blue[700],
-                    size: 20,
+                    size: 18,
                   ),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This is completely anonymous and only goes to people who are currently available (not sleeping or away)',
+                      'Only goes to people who are currently available (not sleeping or away)',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.blue[700],
@@ -171,7 +179,7 @@ class _TooLoudButtonState extends State<TooLoudButton>
           SnackBar(
             content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
                 SizedBox(width: 8),
                 Text('Anonymous noise reminder sent'),
               ],
@@ -198,40 +206,44 @@ class _TooLoudButtonState extends State<TooLoudButton>
       onTapCancel: _onTapCancel,
       onTap: _sendTooLoudRequest,
       child: AnimatedBuilder(
-        animation: _animationController,
+        animation: _scaleAnimation,
         builder: (context, child) {
           return Transform.scale(
             scale: _scaleAnimation.value,
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              height: 48, // Fixed height for better alignment
+              padding: EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: _isPressed
-                      ? [Colors.orange[400]!, Colors.orange[600]!]
-                      : [Colors.orange[300]!, Colors.orange[500]!],
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1,
                 ),
-                borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.orange.withOpacity(0.3),
-                    blurRadius: _isPressed ? 4 : 8,
-                    offset: Offset(0, _isPressed ? 2 : 4),
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('🤫', style: TextStyle(fontSize: 18)),
+                  Icon(
+                    Icons.volume_off_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Too Loud',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ],

@@ -24,7 +24,7 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
       duration: Duration(milliseconds: 150),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
   }
@@ -53,79 +53,92 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
     // Show confirmation dialog
     final shouldSend = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Row(
-              children: [
-                Text('🤝', style: TextStyle(fontSize: 24)),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Request Quiet',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Send an anonymous, gentle reminder to your housemates?',
-                  style: TextStyle(fontSize: 16, height: 1.4),
-                ),
-                SizedBox(height: 16),
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Colors.blue[700],
-                        size: 20,
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'They\'ll see: "Someone has requested quiet in common areas"',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.blue[700],
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text('Cancel'),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Color(0xFF6366F1).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF6366F1),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text('Send Request'),
+              child: Icon(
+                Icons.volume_down_rounded,
+                color: Color(0xFF6366F1),
+                size: 24,
               ),
-            ],
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Request Quiet',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Send an anonymous, gentle reminder to your housemates?',
+              style: TextStyle(fontSize: 16, height: 1.4),
+            ),
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Color(0xFF6366F1).withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Color(0xFF6366F1).withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline,
+                    color: Color(0xFF6366F1),
+                    size: 18,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '"Someone has requested quiet in common areas"',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF6366F1),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
           ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFF6366F1),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('Send Request'),
+          ),
+        ],
+      ),
     );
 
     if (shouldSend == true) {
@@ -138,7 +151,7 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
           SnackBar(
             content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
                 SizedBox(width: 8),
                 Text('Quiet request sent anonymously'),
               ],
@@ -170,33 +183,39 @@ class _QuietRequestButtonState extends State<QuietRequestButton>
           return Transform.scale(
             scale: _scaleAnimation.value,
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              height: 48,
+              padding: EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFFFA574), Color(0xFFFF6B9D)],
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1,
                 ),
-                borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0xFFFF6B9D).withOpacity(0.3),
+                    color: Colors.black.withOpacity(0.1),
                     blurRadius: 8,
-                    offset: Offset(0, 4),
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('🤝', style: TextStyle(fontSize: 18)),
+                  Icon(
+                    Icons.volume_down_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Request Quiet',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ],

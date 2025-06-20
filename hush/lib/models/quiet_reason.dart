@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 enum QuietReason {
   general,   // 🔇 Default volume-off icon
   sleeping,  // 🌙 Moon icon  
@@ -16,14 +18,14 @@ extension QuietReasonExtension on QuietReason {
     }
   }
 
-  String get icon {
+  IconData get icon {
     switch (this) {
       case QuietReason.general:
-        return '🔇';
+        return Icons.volume_off;
       case QuietReason.sleeping:
-        return '🌙';
+        return Icons.bed;
       case QuietReason.working:
-        return '💻';
+        return Icons.work;
     }
   }
 
