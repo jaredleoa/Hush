@@ -1,4 +1,4 @@
-// lib/screens/home_screen.dart (Updated imports section)
+// lib/screens/home_screen.dart (Fixed version)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -134,9 +134,6 @@ class _HushHomePageState extends State<HushHomePage>
           quietStartTime: _isQuietTime ? DateTime.now() : null,
         );
       }
-
-      // Handle breathing animation after loading settings
-
     });
   }
 
@@ -144,7 +141,7 @@ class _HushHomePageState extends State<HushHomePage>
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('isQuietTime', _isQuietTime);
     if (_currentQuietReason != null) {
-       await prefs.setInt('quietReason', _currentQuietReason?.index ?? 0);
+      await prefs.setInt('quietReason', _currentQuietReason?.index ?? 0);
     }
     await prefs.setInt('sharingMode', _sharingMode.index);
   }
@@ -191,9 +188,6 @@ class _HushHomePageState extends State<HushHomePage>
           quietStartTime: DateTime.now(),
         );
       }
-
-      // Start breathing animation
-
     });
 
     _saveSettings();
@@ -208,45 +202,42 @@ class _HushHomePageState extends State<HushHomePage>
     showDialog(
       context: context,
       barrierColor: Colors.black.withOpacity(0.7),
-      builder:
-          (context) => AlertDialog(
-            backgroundColor:
-                _isQuietTime ? Color(0xFF6366F1) : Color(0xFF10B981),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Text(
-              'Select Quiet Reason',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children:
-                  QuietReason.values.map((reason) {
-                    return Container(
-                      margin: EdgeInsets.symmetric(vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ListTile(
-                        title: Text(
-                          reason.displayName,
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _onQuietReasonSelected(reason);
-                        },
-                      ),
-                    );
-                  }).toList(),
-            ),
+      builder: (context) => AlertDialog(
+        backgroundColor: _isQuietTime ? Color(0xFF6366F1) : Color(0xFF10B981),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Select Quiet Reason',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
           ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: QuietReason.values.map((reason) {
+            return Container(
+              margin: EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListTile(
+                title: Text(
+                  reason.displayName,
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onQuietReasonSelected(reason);
+                },
+              ),
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
 
@@ -254,7 +245,12 @@ class _HushHomePageState extends State<HushHomePage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(children: [_buildHeader(), _buildHousematesList()]),
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(child: _buildHousematesList()),
+        ],
+      ),
     );
   }
 
@@ -266,10 +262,9 @@ class _HushHomePageState extends State<HushHomePage>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors:
-              _isQuietTime
-                  ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
-                  : [Color(0xFF10B981), Color(0xFF059669)],
+          colors: _isQuietTime
+              ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+              : [Color(0xFF10B981), Color(0xFF059669)],
         ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(40),
@@ -286,180 +281,226 @@ class _HushHomePageState extends State<HushHomePage>
       ),
       child: SafeArea(
         bottom: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, 50),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Stack(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 50),
+              child: Column(
                 children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        _householdName,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.settings, color: Colors.white, size: 28),
+                        onPressed: () => _showSettingsMenu(),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 30),
                   Text(
-                    '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                    'Household Status',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Colors.white.withOpacity(0.95),
                       fontSize: 20,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  Text(
-                    _householdName,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  SizedBox(height: 30),
+                  QuietTimeToggleButton(
+                    isQuietTime: _isQuietTime,
+                    onTap: _toggleQuietTime,
+                    onLongPress: _showQuietReasonDialog,
                   ),
-                  IconButton(
-                    icon: Icon(Icons.settings, color: Colors.white, size: 28),
-                    onPressed: () => _showSettingsMenu(),
-                  ),
-                ],
-              ),
-              SizedBox(height: 30),
-
-              Text(
-                'Household Status',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.95),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              SizedBox(height: 30),
-
-              QuietTimeToggleButton(
-                isQuietTime: _isQuietTime,
-                onTap: _toggleQuietTime,
-                onLongPress: _showQuietReasonDialog,
-              ),
-              SizedBox(height: 25),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  QuietRequestButton(
-                    onRequestSent: () {
-                      // Optional: Could show analytics about requests sent
-                    },
-                  ),
-
-                  SizedBox(width: 16),
-
+                  SizedBox(height: 25),
+                  // Only show Too Loud button in center if there are available housemates
                   if (_availableHousemates.isNotEmpty)
                     TooLoudButton(
                       onRequestSent: () {
                         // Optional: Could track noise complaints for household harmony
                       },
                     ),
-                ],
-              ),
-
-              SizedBox(height: 15),
-
-              AnimatedContainer(
-                duration: Duration(milliseconds: 300),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors:
-                        _sharingMode == SharingMode.invisible
+                  SizedBox(height: 15),
+                  AnimatedContainer(
+                    duration: Duration(milliseconds: 300),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: _sharingMode == SharingMode.invisible
                             ? (_isQuietTime
                                 ? [
-                                  Color(0xFF6366F1),
-                                  Color(0xFF8B5CF6),
-                                ] // Purple when quiet + invisible
+                                    Color(0xFF6366F1),
+                                    Color(0xFF8B5CF6),
+                                  ] // Purple when quiet + invisible
                                 : [
-                                  Color(0xFF34D399),
-                                  Color(0xFF059669),
-                                ]) // Green when available + invisible
+                                    Color(0xFF34D399),
+                                    Color(0xFF059669),
+                                  ]) // Green when available + invisible
                             : [
-                              Colors.white.withOpacity(0.3),
-                              Colors.white.withOpacity(0.1),
+                                Colors.white.withOpacity(0.3),
+                                Colors.white.withOpacity(0.1),
+                              ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_sharingMode == SharingMode.invisible
+                                  ? (_isQuietTime
+                                      ? Color(0xFF6366F1)
+                                      : Color(0xFF10B981))
+                                  : Colors.white)
+                              .withOpacity(0.3),
+                          blurRadius: 15,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            // Toggle between invisible and named sharing mode
+                            _sharingMode = _sharingMode == SharingMode.invisible
+                                ? SharingMode.named
+                                : SharingMode.invisible;
+
+                            // Update the "You" entry in housemates with new sharing mode
+                            final youIndex = _housemates.indexWhere(
+                              (h) => h.name == 'You',
+                            );
+                            if (youIndex != -1) {
+                              _housemates[youIndex] = _housemates[youIndex]
+                                  .copyWith(sharingMode: _sharingMode);
+                            }
+
+                            // Save settings after all changes are made
+                            _saveSettings();
+                          });
+                          HapticFeedback.mediumImpact();
+                        },
+                        borderRadius: BorderRadius.circular(30),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 16,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _sharingMode == SharingMode.invisible
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                                size: 24,
+                                color: _sharingMode == SharingMode.invisible
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.9),
+                              ),
+                              SizedBox(width: 12),
+                              AnimatedDefaultTextStyle(
+                                duration: Duration(milliseconds: 300),
+                                style: TextStyle(
+                                  color: _sharingMode == SharingMode.invisible
+                                      ? Colors.white
+                                      : Colors.white.withOpacity(0.9),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                child: Text(
+                                  _sharingMode == SharingMode.invisible
+                                      ? 'Go Visible'
+                                      : 'Go Invisible',
+                                ),
+                              ),
                             ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(30),
+                ],
+              ),
+            ),
+            // Request Quiet button positioned in bottom right corner - small round button
+            Positioned(
+              bottom: 15,
+              right: 20,
+              child: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: (_sharingMode == SharingMode.invisible
-                              ? (_isQuietTime
-                                  ? Color(0xFF6366F1)
-                                  : Color(0xFF10B981))
-                              : Colors.white)
-                          .withOpacity(0.3),
-                      blurRadius: 15,
-                      offset: Offset(0, 5),
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
                     ),
                   ],
                 ),
                 child: Material(
                   color: Colors.transparent,
+                  shape: CircleBorder(),
                   child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        // Toggle between invisible and named sharing mode
-                        _sharingMode = _sharingMode == SharingMode.invisible
-                            ? SharingMode.named
-                            : SharingMode.invisible;
-                        
-                        // Update the "You" entry in housemates with new sharing mode
-                        final youIndex = _housemates.indexWhere(
-                          (h) => h.name == 'You',
+                    onTap: () async {
+                      HapticFeedback.lightImpact();
+                      await NotificationService().sendQuietRequest();
+                      
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                                SizedBox(width: 8),
+                                Text('Quiet request sent anonymously'),
+                              ],
+                            ),
+                            backgroundColor: Color(0xFF6366F1), // Changed from green to match app theme
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            duration: Duration(seconds: 2),
+                          ),
                         );
-                        if (youIndex != -1) {
-                          _housemates[youIndex] = _housemates[youIndex]
-                              .copyWith(sharingMode: _sharingMode);
-                        }
-                        
-                        // Save settings after all changes are made
-                        _saveSettings();
-                      });
-                      HapticFeedback.mediumImpact();
+                      }
                     },
-                    borderRadius: BorderRadius.circular(30),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _sharingMode == SharingMode.invisible
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                            size: 24,
-                            color:
-                                _sharingMode == SharingMode.invisible
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.9),
-                          ),
-                          SizedBox(width: 12),
-                          AnimatedDefaultTextStyle(
-                            duration: Duration(milliseconds: 300),
-                            style: TextStyle(
-                              color:
-                                  _sharingMode == SharingMode.invisible
-                                      ? Colors.white
-                                      : Colors.white.withOpacity(0.9),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            child: Text(
-                              _sharingMode == SharingMode.invisible
-                                  ? 'Go Visible'
-                                  : 'Go Invisible',
-                            ),
-                          ),
-                        ],
+                    customBorder: CircleBorder(),
+                    child: Center(
+                      child: Icon(
+                        Icons.nightlight_round, // Changed to moon icon to match quiet time theme
+                        color: Colors.white,
+                        size: 24,
                       ),
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -467,13 +508,13 @@ class _HushHomePageState extends State<HushHomePage>
 
   Widget _buildHousematesList() {
     // Only show housemates who are not in invisible mode
-    final visibleHousemates =
-        _housemates
-            .where((h) => h.sharingMode != SharingMode.invisible)
-            .toList();
+    final visibleHousemates = _housemates
+        .where((h) => h.sharingMode != SharingMode.invisible)
+        .toList();
     final hiddenCount = _housemates.length - visibleHousemates.length;
 
-    return Expanded(
+    return SingleChildScrollView(
+      physics: AlwaysScrollableScrollPhysics(),
       child: Column(
         children: [
           // NEW: Noise management status section
@@ -513,7 +554,7 @@ class _HushHomePageState extends State<HushHomePage>
                               : '${_quietHousemates.length} people need quiet',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF90CAF9),
+                            color: Color(0xFF1976D2),
                             fontSize: 14,
                           ),
                         ),
@@ -522,7 +563,7 @@ class _HushHomePageState extends State<HushHomePage>
                           Text(
                             'No one available for noise notifications right now',
                             style: TextStyle(
-                              color: Color(0xFF1976D2), // Using hex value instead of Colors.blue[600] to avoid null safety issues
+                              color: Color(0xFF1976D2),
                               fontSize: 12,
                             ),
                           ),
@@ -587,15 +628,16 @@ class _HushHomePageState extends State<HushHomePage>
             ),
           ],
 
-          Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              itemCount: visibleHousemates.length,
-              itemBuilder: (context, index) {
-                final person = visibleHousemates[index];
-                return _buildHousemateTile(person);
-              },
-            ),
+          // Housemates list
+          ListView.builder(
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            itemCount: visibleHousemates.length,
+            itemBuilder: (context, index) {
+              final person = visibleHousemates[index];
+              return _buildHousemateTile(person);
+            },
           ),
         ],
       ),
@@ -621,10 +663,9 @@ class _HushHomePageState extends State<HushHomePage>
           ),
         ],
         border: Border.all(
-          color:
-              needsQuiet
-                  ? Color(0xFF6366F1).withOpacity(0.1)
-                  : Color(0xFF10B981).withOpacity(0.1),
+          color: needsQuiet
+              ? Color(0xFF6366F1).withOpacity(0.1)
+              : Color(0xFF10B981).withOpacity(0.1),
           width: 1,
         ),
       ),
@@ -638,10 +679,9 @@ class _HushHomePageState extends State<HushHomePage>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
-                colors:
-                    needsQuiet
-                        ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
-                        : isAway
+                colors: needsQuiet
+                    ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                    : isAway
                         ? [Color(0xFF6B7280), Color(0xFF4B5563)]
                         : [Color(0xFF10B981), Color(0xFF059669)],
                 begin: Alignment.topLeft,
@@ -652,8 +692,8 @@ class _HushHomePageState extends State<HushHomePage>
                   color: (needsQuiet
                           ? Color(0xFF6366F1)
                           : isAway
-                          ? Color(0xFF6B7280)
-                          : Color(0xFF10B981))
+                              ? Color(0xFF6B7280)
+                              : Color(0xFF10B981))
                       .withOpacity(0.3),
                   blurRadius: 12,
                   offset: Offset(0, 4),
@@ -664,8 +704,8 @@ class _HushHomePageState extends State<HushHomePage>
               needsQuiet
                   ? Icons.volume_off_rounded
                   : isAway
-                  ? Icons.location_off_rounded
-                  : Icons.volume_up_rounded,
+                      ? Icons.location_off_rounded
+                      : Icons.volume_up_rounded,
               color: Colors.white,
               size: 26,
             ),
@@ -744,30 +784,28 @@ class _HushHomePageState extends State<HushHomePage>
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors:
-                    needsQuiet
+                colors: needsQuiet
+                    ? [
+                        Color(0xFF6366F1).withOpacity(0.15),
+                        Color(0xFF4F46E5).withOpacity(0.1),
+                      ]
+                    : isAway
                         ? [
-                          Color(0xFF6366F1).withOpacity(0.15),
-                          Color(0xFF4F46E5).withOpacity(0.1),
-                        ]
-                        : isAway
-                        ? [
-                          Color(0xFF6B7280).withOpacity(0.15),
-                          Color(0xFF4B5563).withOpacity(0.1),
-                        ]
+                            Color(0xFF6B7280).withOpacity(0.15),
+                            Color(0xFF4B5563).withOpacity(0.1),
+                          ]
                         : [
-                          Color(0xFF10B981).withOpacity(0.15),
-                          Color(0xFF059669).withOpacity(0.1),
-                        ],
+                            Color(0xFF10B981).withOpacity(0.15),
+                            Color(0xFF059669).withOpacity(0.1),
+                          ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color:
-                    needsQuiet
-                        ? Color(0xFF6366F1).withOpacity(0.2)
-                        : isAway
+                color: needsQuiet
+                    ? Color(0xFF6366F1).withOpacity(0.2)
+                    : isAway
                         ? Color(0xFF6B7280).withOpacity(0.2)
                         : Color(0xFF10B981).withOpacity(0.2),
                 width: 1,
@@ -777,13 +815,12 @@ class _HushHomePageState extends State<HushHomePage>
               needsQuiet
                   ? 'Quiet'
                   : isAway
-                  ? 'Away'
-                  : 'Available',
+                      ? 'Away'
+                      : 'Available',
               style: TextStyle(
-                color:
-                    needsQuiet
-                        ? Color(0xFF4F46E5)
-                        : isAway
+                color: needsQuiet
+                    ? Color(0xFF4F46E5)
+                    : isAway
                         ? Color(0xFF4B5563)
                         : Color(0xFF059669),
                 fontWeight: FontWeight.w700,
@@ -797,188 +834,158 @@ class _HushHomePageState extends State<HushHomePage>
     );
   }
 
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'Hush',
+      applicationVersion: '1.0.0',
+      applicationIcon: Icon(Icons.nights_stay, size: 40, color: Theme.of(context).colorScheme.primary),
+      applicationLegalese: '© 2025 Hush App. All rights reserved.',
+      children: [
+        SizedBox(height: 16),
+        Text(
+          'A privacy-first app for coordinating quiet times with your housemates.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        SizedBox(height: 16),
+        Text(
+          'Version 1.0.0',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
   void _showSettingsMenu() {
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder:
-          (context) => Container(
-            padding: EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Subscription Management
-                Consumer<SubscriptionService>(
-                  builder: (context, subscription, child) {
-                    return ListTile(
-                      leading: Icon(
-                        subscription.isPremium ? Icons.star : Icons.star_border,
-                        color: subscription.isPremium ? Colors.amber : null,
-                      ),
-                      title: Text(
-                        subscription.isPremium
-                            ? 'Manage Subscription'
-                            : 'Upgrade to Premium',
-                      ),
-                      subtitle: Text(
-                        subscription.isPremium
-                            ? subscription.currentTier.displayName
-                            : 'Unlock unlimited members & more',
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => PaywallScreen()),
-                        );
-                      },
-                    );
-                  },
-                ),
-                Divider(),
-                // Privacy Settings
-                ListTile(
-                  leading: Icon(Icons.privacy_tip),
-                  title: Text('Privacy Settings'),
-                  subtitle: Text('Control what you share'),
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Subscription Management
+            Consumer<SubscriptionService>(
+              builder: (context, subscription, child) {
+                return ListTile(
+                  leading: Icon(
+                    subscription.isPremium ? Icons.star : Icons.star_border,
+                    color: subscription.isPremium ? Colors.amber : null,
+                  ),
+                  title: Text(
+                    subscription.isPremium
+                        ? 'Manage Subscription'
+                        : 'Upgrade to Premium',
+                  ),
+                  subtitle: Text(
+                    subscription.isPremium
+                        ? subscription.currentTier.displayName
+                        : 'Unlock unlimited members & more',
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => PrivacySettingsScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => PaywallScreen()),
                     );
                   },
-                ),
-                ListTile(
-                  leading: Icon(Icons.vpn_key),
-                  title: Text('Invite Code'),
-                  subtitle: FutureBuilder<String>(
-                    future: SharedPreferences.getInstance().then(
-                      (prefs) => prefs.getString('inviteCode') ?? 'N/A',
-                    ),
-                    builder:
-                        (context, snapshot) =>
-                            Text(snapshot.data ?? 'Loading...'),
+                );
+              },
+            ),
+            Divider(),
+            // Privacy Settings
+            ListTile(
+              leading: Icon(Icons.privacy_tip),
+              title: Text('Privacy Settings'),
+              subtitle: Text('Control what you share'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PrivacySettingsScreen(),
                   ),
-                  onTap: () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    final code = prefs.getString('inviteCode') ?? '';
-                    await Clipboard.setData(ClipboardData(text: code));
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Invite code copied!')),
-                      );
-                    }
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('About Hush'),
-                  subtitle: Text('Privacy-first household coordination'),
-                  onTap: () => _showAboutDialog(),
-                ),
-                Divider(),
-                ListTile(
-                  leading: Icon(Icons.exit_to_app, color: Colors.red),
-                  title: Text(
-                    'Leave Household',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                  subtitle: Text('Reset and return to setup'),
-                  onTap: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder:
-                          (context) => AlertDialog(
-                            title: Text('Leave Household?'),
-                            content: Text(
-                              'This will clear all your data and return you to setup.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: Text(
-                                  'Leave',
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                              ),
-                            ],
-                          ),
-                    );
-
-                    if (confirmed == true) {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.clear();
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => HouseholdSetupScreen(),
-                        ),
-                        (route) => false,
-                      );
-                    }
-                  },
-                ),
-              ],
+                );
+              },
             ),
-          ),
-    );
-  }
-
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Row(
-              children: [
-                Icon(Icons.volume_off_rounded, color: Color(0xFF6366F1)),
-                SizedBox(width: 8),
-                Text('About Hush'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hush helps housemates coordinate quiet times respectfully.',
-                  style: TextStyle(fontSize: 16),
+            ListTile(
+              leading: Icon(Icons.vpn_key),
+              title: Text('Invite Code'),
+              subtitle: FutureBuilder<String>(
+                future: SharedPreferences.getInstance().then(
+                  (prefs) => prefs.getString('inviteCode') ?? 'N/A',
                 ),
-                SizedBox(height: 16),
-                Text(
-                  'Privacy Features:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  '• Minimal data sharing by default\n'
-                  '• "Invisible mode" for complete privacy\n'
-                  '• No tracking of specific activities\n'
-                  '• You control all sharing settings\n'
-                  '• Data stays within your household',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Got it'),
+                builder: (context, snapshot) =>
+                    Text(snapshot.data ?? 'Loading...'),
               ),
-            ],
-          ),
+              onTap: () async {
+                final prefs = await SharedPreferences.getInstance();
+                final code = prefs.getString('inviteCode') ?? '';
+                await Clipboard.setData(ClipboardData(text: code));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Invite code copied!')),
+                  );
+                }
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.info_outline),
+              title: Text('About Hush'),
+              subtitle: Text('Privacy-first household coordination'),
+              onTap: () => _showAboutDialog(),
+            ),
+            Divider(),
+            ListTile(
+              leading: Icon(Icons.exit_to_app, color: Colors.red),
+              title: Text(
+                'Leave Household',
+                style: TextStyle(color: Colors.red),
+              ),
+              subtitle: Text('Reset and return to setup'),
+              onTap: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('Leave Household?'),
+                    content: Text(
+                      'This will clear all your data and return you to setup.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text(
+                          'Leave',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmed == true) {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.clear();
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => HouseholdSetupScreen(),
+                    ),
+                    (route) => false,
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
     );
-  }
-}
+  }}

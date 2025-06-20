@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 import '../config/supabase_config.dart';
 
-class AuthService {
+class AuthService extends ChangeNotifier {
   final SupabaseClient _supabase = SupabaseConfig.supabaseClient;
 
   // Get current user

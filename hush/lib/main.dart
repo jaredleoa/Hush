@@ -6,18 +6,30 @@ import 'package:provider/provider.dart';
 import 'screens/splash_screen.dart';
 import 'services/notification_service.dart';
 import 'services/subscription_service.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GentleNotificationService.initialize();
-  runApp(HushApp());
+  
+  // Initialize AuthService
+  final authService = AuthService();
+  
+  runApp(HushApp(authService: authService));
 }
 
 class HushApp extends StatelessWidget {
+  final AuthService authService;
+
+  const HushApp({Key? key, required this.authService}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider<AuthService>(
+          create: (_) => authService,
+        ),
         ChangeNotifierProvider(create: (_) => SubscriptionService()),
       ],
       child: MaterialApp(
