@@ -17,6 +17,10 @@ dependencies:
   shared_preferences: ^2.5.3
   provider: ^6.1.5
 
+  connectivity_plus: ^6.0.5
+  network_info_plus: ^5.0.3
+  permission_handler: ^11.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

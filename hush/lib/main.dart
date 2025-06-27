@@ -1,6 +1,7 @@
 // lib/main.dart (Fixed version)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hush/services/wifi_location_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +13,9 @@ import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize WiFi location service
+  await WiFiLocationService().initialize();
 
   try {
     // Initialize Supabase first

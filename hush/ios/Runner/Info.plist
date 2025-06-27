@@ -45,5 +45,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+		<!-- Location permission description for accessing WiFi network names -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs location permission to detect your home WiFi network for automatic home/away status updates.</string>
+
+
 </dict>
 </plist>
