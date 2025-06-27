@@ -1,4 +1,4 @@
-// lib/screens/household_setup_screen.dart (Updated to match app design)
+// lib/screens/household_setup_screen.dart (Complete Fixed Version)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,7 +26,9 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
     super.initState();
     // Initialize subscription service
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<SubscriptionService>(context, listen: false).initialize();
+      if (mounted) {
+        Provider.of<SubscriptionService>(context, listen: false).initialize();
+      }
     });
   }
 
@@ -138,82 +140,83 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.group_off, color: Colors.orange, size: 28),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Household Full',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'This household has reached the ${subscriptionService.maxHouseholdMembers} member limit for free accounts.',
-              style: TextStyle(fontSize: 16),
+            title: Row(
+              children: [
+                Icon(Icons.group_off, color: Colors.orange, size: 28),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Household Full',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This household has reached the ${subscriptionService.maxHouseholdMembers} member limit for free accounts.',
+                  style: TextStyle(fontSize: 16),
+                ),
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.star, color: Colors.blue[700], size: 20),
-                      SizedBox(width: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.star, color: Colors.blue[700], size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Upgrade to Hush Basic',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
                       Text(
-                        'Upgrade to Hush Basic',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[700],
-                        ),
+                        '• Unlimited household members\n• Smart scheduling\n• Enhanced notifications\n• Only \$2.99/month',
+                        style: TextStyle(color: Colors.blue[700], fontSize: 14),
                       ),
                     ],
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    '• Unlimited household members\n• Smart scheduling\n• Enhanced notifications\n• Only \$2.99/month',
-                    style: TextStyle(color: Colors.blue[700], fontSize: 14),
-                  ),
-                ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Maybe Later'),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Maybe Later'),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showPaywall('unlimited_members');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Upgrade Now'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showPaywall('unlimited_members');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF6366F1),
-              foregroundColor: Colors.white,
-            ),
-            child: Text('Upgrade Now'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -221,13 +224,14 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PaywallScreen(
-          feature: feature,
-          onUpgraded: () {
-            // Retry joining after upgrade
-            _joinHousehold();
-          },
-        ),
+        builder:
+            (_) => PaywallScreen(
+              feature: feature,
+              onUpgraded: () {
+                // Retry joining after upgrade
+                _joinHousehold();
+              },
+            ),
       ),
     );
   }
@@ -252,254 +256,203 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: Container(
-          padding: EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.white, Color(0xFFFAFAFA)],
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Success Icon
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF10B981), Color(0xFF059669)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0xFF10B981).withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.check_circle_outline,
-                  size: 40,
-                  color: Colors.white,
-                ),
+            insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 60),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.75,
+                maxWidth: MediaQuery.of(context).size.width * 0.9,
               ),
-              SizedBox(height: 24),
-              
-              Text(
-                'Household Created!',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Share this code with your housemates:',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 28),
-              
-              // Code Display
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF6366F1).withOpacity(0.1),
-                      Color(0xFF4F46E5).withOpacity(0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Color(0xFF6366F1).withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  code,
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF6366F1),
-                    letterSpacing: 8,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              SizedBox(height: 20),
-              
-              // Copy Button
-              Container(
-                width: double.infinity,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: code));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.white, size: 20),
-                            SizedBox(width: 8),
-                            Text('Code copied to clipboard'),
-                          ],
-                        ),
-                        backgroundColor: Color(0xFF10B981),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
+              child: IntrinsicHeight(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Success Icon
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Color(0xFF10B981),
                           borderRadius: BorderRadius.circular(10),
                         ),
+                        child: Icon(Icons.check, size: 20, color: Colors.white),
                       ),
-                    );
-                  },
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: Icon(
-                    Icons.copy,
-                    color: Color(0xFF6366F1),
-                    size: 20,
-                  ),
-                  label: Text(
-                    'Copy Code',
-                    style: TextStyle(
-                      color: Color(0xFF6366F1),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: 20),
-              
-              // Plan Info Card
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: subscriptionService.isPremium
-                      ? Color(0xFF6366F1).withOpacity(0.1)
-                      : Colors.grey[50],
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: subscriptionService.isPremium
-                        ? Color(0xFF6366F1).withOpacity(0.2)
-                        : Colors.grey[200]!,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: subscriptionService.isPremium
-                            ? Color(0xFF6366F1)
-                            : Colors.grey[400],
-                        borderRadius: BorderRadius.circular(10),
+                      SizedBox(height: 12),
+
+                      Text(
+                        'Household Created!',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2937),
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      child: Icon(
-                        subscriptionService.isPremium
-                            ? Icons.star
-                            : Icons.info_outline,
-                        color: Colors.white,
-                        size: 20,
+                      SizedBox(height: 4),
+                      Text(
+                        'Share this code with your housemates:',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            subscriptionService.isPremium
-                                ? 'Premium Plan Active'
-                                : 'Free Plan',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: subscriptionService.isPremium
-                                  ? Color(0xFF6366F1)
-                                  : Colors.grey[700],
-                            ),
+                      SizedBox(height: 12),
+
+                      // Code Display
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF6366F1).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Color(0xFF6366F1).withOpacity(0.3),
                           ),
-                          Text(
-                            subscriptionService.isPremium
-                                ? 'Unlimited members & premium features'
-                                : 'Up to ${subscriptionService.maxHouseholdMembers} members • Privacy-first design',
+                        ),
+                        child: Text(
+                          code,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF6366F1),
+                            letterSpacing: 3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+
+                      // Copy Button
+                      TextButton.icon(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: code));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Code copied!'),
+                              backgroundColor: Color(0xFF10B981),
+                              behavior: SnackBarBehavior.floating,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 8,
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.copy,
+                          color: Color(0xFF6366F1),
+                          size: 14,
+                        ),
+                        label: Text(
+                          'Copy Code',
+                          style: TextStyle(
+                            color: Color(0xFF6366F1),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 8),
+
+                      // Plan Info Card
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[400],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.info_outline,
+                                color: Colors.white,
+                                size: 10,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Free Plan',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                  Text(
+                                    'Up to 4 members • Privacy-first design',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 12),
+
+                      // Continue Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PrivacyOnboardingScreen(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            'Continue',
                             style: TextStyle(
                               fontSize: 14,
-                              color: subscriptionService.isPremium
-                                  ? Color(0xFF6366F1).withOpacity(0.8)
-                                  : Colors.grey[600],
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 28),
-              
-              // Continue Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PrivacyOnboardingScreen(),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Continue',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -526,61 +479,83 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
             builder: (context, authService, child) {
               return PopupMenuButton(
                 icon: Icon(Icons.more_vert, color: Color(0xFF6366F1)),
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    child: ListTile(
-                      leading: Icon(Icons.logout, color: Colors.red, size: 20),
-                      title: Text('Sign Out', style: TextStyle(fontSize: 14)),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    onTap: () async {
-                      // Small delay to allow popup to close
-                      await Future.delayed(Duration(milliseconds: 100));
-                      
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: Text('Sign Out?'),
-                          content: Text('Are you sure you want to sign out?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: Text(
-                                'Sign Out',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
+                itemBuilder:
+                    (context) => [
+                      PopupMenuItem(
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.logout,
+                            color: Colors.red,
+                            size: 20,
+                          ),
+                          title: Text(
+                            'Sign Out',
+                            style: TextStyle(fontSize: 14),
+                          ),
+                          contentPadding: EdgeInsets.zero,
                         ),
-                      );
+                        onTap: () async {
+                          // Small delay to allow popup to close
+                          await Future.delayed(Duration(milliseconds: 100));
 
-                      if (confirmed == true) {
-                        try {
-                          await authService.signOut();
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.clear();
-                          
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (_) => LoginScreen()),
-                            (route) => false,
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder:
+                                (context) => AlertDialog(
+                                  title: Text('Sign Out?'),
+                                  content: Text(
+                                    'Are you sure you want to sign out?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.pop(context, false),
+                                      child: Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed:
+                                          () => Navigator.pop(context, true),
+                                      child: Text(
+                                        'Sign Out',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                           );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error signing out. Please try again.'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                  ),
-                ],
+
+                          if (confirmed == true && context.mounted) {
+                            try {
+                              await authService.signOut();
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              await prefs.clear();
+
+                              if (context.mounted) {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => LoginScreen(),
+                                  ),
+                                  (route) => false,
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Error signing out. Please try again.',
+                                    ),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          }
+                        },
+                      ),
+                    ],
               );
             },
           ),
@@ -637,10 +612,7 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                 Center(
                   child: Text(
                     'Create a household focused on respectful living',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 18, color: Colors.grey[600]),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -758,24 +730,26 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                               ),
                               elevation: 0,
                             ),
-                            child: _isJoining
-                                ? SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF6366F1),
+                            child:
+                                _isJoining
+                                    ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF6366F1),
+                                            ),
+                                      ),
+                                    )
+                                    : Text(
+                                      'Join Household',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                  )
-                                : Text(
-                                    'Join Household',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
                           ),
                         ),
                       ],
@@ -905,25 +879,27 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                               ),
                               elevation: 0,
                             ),
-                            child: _isCreating
-                                ? SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Color(0xFF10B981),
+                            child:
+                                _isCreating
+                                    ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Color(0xFF10B981),
+                                            ),
+                                      ),
+                                    )
+                                    : Text(
+                                      'Create Household',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                  )
-                                : Text(
-                                    'Create Household',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -938,14 +914,16 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                     return Container(
                       padding: EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: subscription.isPremium
-                            ? Color(0xFF6366F1).withOpacity(0.1)
-                            : Colors.grey[50],
+                        color:
+                            subscription.isPremium
+                                ? Color(0xFF6366F1).withOpacity(0.1)
+                                : Colors.grey[50],
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: subscription.isPremium
-                              ? Color(0xFF6366F1).withOpacity(0.2)
-                              : Colors.grey[200]!,
+                          color:
+                              subscription.isPremium
+                                  ? Color(0xFF6366F1).withOpacity(0.2)
+                                  : Colors.grey[200]!,
                         ),
                       ),
                       child: Row(
@@ -954,9 +932,10 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: subscription.isPremium
-                                  ? Color(0xFF6366F1)
-                                  : Colors.grey[400],
+                              color:
+                                  subscription.isPremium
+                                      ? Color(0xFF6366F1)
+                                      : Colors.grey[400],
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
@@ -979,9 +958,10 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
-                                    color: subscription.isPremium
-                                        ? Color(0xFF6366F1)
-                                        : Colors.grey[700],
+                                    color:
+                                        subscription.isPremium
+                                            ? Color(0xFF6366F1)
+                                            : Colors.grey[700],
                                   ),
                                 ),
                                 Text(
@@ -990,9 +970,10 @@ class _HouseholdSetupScreenState extends State<HouseholdSetupScreen> {
                                       : 'Up to ${subscription.currentTier.maxHouseholdMembers} members • Privacy-first design',
                                   style: TextStyle(
                                     fontSize: 14,
-                                    color: subscription.isPremium
-                                        ? Color(0xFF6366F1).withOpacity(0.8)
-                                        : Colors.grey[600],
+                                    color:
+                                        subscription.isPremium
+                                            ? Color(0xFF6366F1).withOpacity(0.8)
+                                            : Colors.grey[600],
                                   ),
                                 ),
                               ],
