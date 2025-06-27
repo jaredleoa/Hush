@@ -764,6 +764,196 @@ class _HushHomePageState extends State<HushHomePage>
     );
   }
 
+  Widget _buildHousemateCard(UserStatus person) {
+    final bool isCurrentUser = person.name == 'You';
+    final bool needsQuiet = person.isQuietTime;
+    final bool isAway = !person.isHome;
+
+    // Apply opacity for away status to both current user and other members
+    final double cardOpacity = isAway ? 0.5 : 1.0;
+
+    return AnimatedOpacity(
+      duration: Duration(milliseconds: 300),
+      opacity: cardOpacity,
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color:
+                needsQuiet
+                    ? Color(0xFF6366F1).withOpacity(0.3)
+                    : isAway
+                    ? Color(0xFF9CA3AF).withOpacity(0.3)
+                    : Color(0xFFE5E7EB),
+            width: needsQuiet ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Avatar with status indicator
+            Stack(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors:
+                          needsQuiet
+                              ? [Color(0xFF6366F1), Color(0xFF4F46E5)]
+                              : isAway
+                              ? [Color(0xFF9CA3AF), Color(0xFF6B7280)]
+                              : [Color(0xFF10B981), Color(0xFF059669)],
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      person.displayName.isNotEmpty
+                          ? person.displayName[0].toUpperCase()
+                          : '?',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                // Status indicator dot
+                if (needsQuiet || isAway)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color:
+                            needsQuiet ? Color(0xFF6366F1) : Color(0xFF9CA3AF),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: Icon(
+                        needsQuiet ? Icons.bedtime : Icons.directions_walk,
+                        color: Colors.white,
+                        size: 8,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            SizedBox(width: 16),
+            // Name and status info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    person.displayName,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: isAway ? Color(0xFF6B7280) : Color(0xFF1F2937),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  if (needsQuiet)
+                    Text(
+                      person.quietReason?.displayName ?? 'Needs quiet time',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  if (_privacySettings.shareActiveHours &&
+                      person.generalActivity != null &&
+                      !needsQuiet) ...[
+                    Text(
+                      isAway
+                          ? 'Currently: away'
+                          : 'Currently: ${person.generalActivity}',
+                      style: TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // Enhanced status badge
+            AnimatedContainer(
+              duration: Duration(milliseconds: 300),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors:
+                      needsQuiet
+                          ? [
+                            Color(0xFF6366F1).withOpacity(0.15),
+                            Color(0xFF4F46E5).withOpacity(0.1),
+                          ]
+                          : isAway
+                          ? [
+                            Color(0xFF6B7280).withOpacity(0.15),
+                            Color(0xFF4B5563).withOpacity(0.1),
+                          ]
+                          : [
+                            Color(0xFF10B981).withOpacity(0.15),
+                            Color(0xFF059669).withOpacity(0.1),
+                          ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color:
+                      needsQuiet
+                          ? Color(0xFF6366F1).withOpacity(0.2)
+                          : isAway
+                          ? Color(0xFF6B7280).withOpacity(0.2)
+                          : Color(0xFF10B981).withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                needsQuiet
+                    ? 'Quiet'
+                    : isAway
+                    ? 'Away'
+                    : 'Available',
+                style: TextStyle(
+                  color:
+                      needsQuiet
+                          ? Color(0xFF4F46E5)
+                          : isAway
+                          ? Color(0xFF6B7280)
+                          : Color(0xFF059669),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Also update the _buildHousematesList method to use this new card builder:
   Widget _buildHousematesList() {
     // Only show housemates who are not in invisible mode
     final visibleHousemates =
@@ -777,7 +967,7 @@ class _HushHomePageState extends State<HushHomePage>
         physics: AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
-            // Location status indicator for current user
+            // Location status indicator for current user (keep existing code)
             if (_privacySettings.shareLocation && _locationService != null)
               Container(
                 margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -867,137 +1057,40 @@ class _HushHomePageState extends State<HushHomePage>
                 ),
               ),
 
-            // Noise management status section
-            if (_quietHousemates.isNotEmpty || _availableHousemates.isEmpty)
+            // Use the new card builder for all household members
+            ...visibleHousemates.map((person) => _buildHousemateCard(person)),
+
+            // Hidden count indicator (keep existing code)
+            if (hiddenCount > 0)
               Container(
                 margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                padding: EdgeInsets.all(16),
+                padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFE3F2FD), Color(0xFFE8F5E9)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Color(0xFF2196F3), width: 1),
+                  color: Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Color(0xFFE5E7EB)),
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      padding: EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Color(0xFFBBDEFB),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.volume_down,
-                        color: Color(0xFF2196F3),
-                        size: 20,
-                      ),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _quietHousemates.length == 1
-                                ? 'Someone needs quiet'
-                                : '${_quietHousemates.length} people need quiet',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1976D2),
-                              fontSize: 14,
-                            ),
-                          ),
-                          if (_availableHousemates.isEmpty) ...[
-                            SizedBox(height: 4),
-                            Text(
-                              'No one available for noise notifications right now',
-                              style: TextStyle(
-                                color: Color(0xFF1976D2),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
                     Icon(
-                      Icons.info_outline,
-                      color: Color(0xFF1976D2),
-                      size: 18,
+                      Icons.visibility_off,
+                      size: 16,
+                      color: Color(0xFF6B7280),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      '$hiddenCount housemate${hiddenCount > 1 ? 's' : ''} in private mode',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
               ),
 
-            if (hiddenCount > 0) ...[
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                child: AnimatedContainer(
-                  duration: Duration(milliseconds: 300),
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Color(0xFF6366F1).withOpacity(0.1),
-                        Color(0xFF8B5CF6).withOpacity(0.05),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Color(0xFF6366F1).withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF6366F1).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.visibility_off,
-                          size: 18,
-                          color: Color(0xFF6366F1),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '$hiddenCount housemate${hiddenCount > 1 ? 's' : ''} in private mode',
-                          style: TextStyle(
-                            color: Color(0xFF6366F1),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-
-            // Housemates list
-            ListView.builder(
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                20,
-                10,
-                20,
-                100,
-              ), // Added bottom padding to avoid overflow
-              itemCount: visibleHousemates.length,
-              itemBuilder: (context, index) {
-                final person = visibleHousemates[index];
-                return _buildHousemateTile(person);
-              },
-            ),
+            SizedBox(height: 100), // Bottom padding for floating buttons
           ],
         ),
       ),
