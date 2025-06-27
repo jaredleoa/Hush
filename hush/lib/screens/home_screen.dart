@@ -424,13 +424,20 @@ class _HushHomePageState extends State<HushHomePage>
               ElevatedButton(
                 onPressed: () async {
                   Navigator.pop(context);
-                  final granted =
-                      await _locationService.requestLocationPermission();
-                  if (granted) {
-                    _showWifiSelection();
+                  if (_locationService != null) {
+                    final granted = await _locationService!.requestLocationPermission();
+                    if (granted) {
+                      _showWifiSelection();
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Location service is not available')),
+                      );
+                    }
                   }
                 },
-                child: Text('Grant Permission'),
+                child: const Text('Grant Permission'),
               ),
             ],
           ),
