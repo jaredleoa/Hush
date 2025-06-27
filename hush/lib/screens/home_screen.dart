@@ -425,14 +425,17 @@ class _HushHomePageState extends State<HushHomePage>
                 onPressed: () async {
                   Navigator.pop(context);
                   if (_locationService != null) {
-                    final granted = await _locationService!.requestLocationPermission();
+                    final granted =
+                        await _locationService!.requestLocationPermission();
                     if (granted) {
                       _showWifiSelection();
                     }
                   } else {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Location service is not available')),
+                        const SnackBar(
+                          content: Text('Location service is not available'),
+                        ),
                       );
                     }
                   }
