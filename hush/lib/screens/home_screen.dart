@@ -1232,137 +1232,142 @@ class _HushHomePageState extends State<HushHomePage>
       builder:
           (context) => Container(
             padding: EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Subscription Management
-                Consumer<SubscriptionService>(
-                  builder: (context, subscription, child) {
-                    return ListTile(
-                      leading: Icon(
-                        subscription.isPremium ? Icons.star : Icons.star_border,
-                        color: subscription.isPremium ? Colors.amber : null,
-                      ),
-                      title: Text(
-                        subscription.isPremium
-                            ? 'Manage Subscription'
-                            : 'Upgrade to Premium',
-                      ),
-                      subtitle: Text(
-                        subscription.isPremium
-                            ? subscription.currentTier.displayName
-                            : 'Unlock unlimited members & more',
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => PaywallScreen()),
-                        );
-                      },
-                    );
-                  },
-                ),
-                Divider(),
-                // Privacy Settings
-                ListTile(
-                  leading: Icon(Icons.privacy_tip),
-                  title: Text('Privacy Settings'),
-                  subtitle: Text('Control what you share'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PrivacySettingsScreen(),
-                      ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.location_on),
-                  title: Text('Location Settings'),
-                  subtitle: Text('Configure home/away detection'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showLocationSettings();
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.vpn_key),
-                  title: Text('Invite Code'),
-                  subtitle: FutureBuilder<String>(
-                    future: SharedPreferences.getInstance().then(
-                      (prefs) => prefs.getString('inviteCode') ?? 'N/A',
-                    ),
-                    builder:
-                        (context, snapshot) =>
-                            Text(snapshot.data ?? 'Loading...'),
-                  ),
-                  onTap: () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    final code = prefs.getString('inviteCode') ?? '';
-                    await Clipboard.setData(ClipboardData(text: code));
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Invite code copied!')),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Subscription Management
+                  Consumer<SubscriptionService>(
+                    builder: (context, subscription, child) {
+                      return ListTile(
+                        leading: Icon(
+                          subscription.isPremium
+                              ? Icons.star
+                              : Icons.star_border,
+                          color: subscription.isPremium ? Colors.amber : null,
+                        ),
+                        title: Text(
+                          subscription.isPremium
+                              ? 'Manage Subscription'
+                              : 'Upgrade to Premium',
+                        ),
+                        subtitle: Text(
+                          subscription.isPremium
+                              ? subscription.currentTier.displayName
+                              : 'Unlock unlimited members & more',
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => PaywallScreen()),
+                          );
+                        },
                       );
-                    }
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.info_outline),
-                  title: Text('About Hush'),
-                  subtitle: Text('Privacy-first household coordination'),
-                  onTap: () => _showAboutDialog(),
-                ),
-                Divider(),
-                ListTile(
-                  leading: Icon(Icons.exit_to_app, color: Colors.red),
-                  title: Text(
-                    'Leave Household',
-                    style: TextStyle(color: Colors.red),
+                    },
                   ),
-                  subtitle: Text('Reset and return to setup'),
-                  onTap: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder:
-                          (context) => AlertDialog(
-                            title: Text('Leave Household?'),
-                            content: Text(
-                              'This will clear all your data and return you to setup.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: Text(
-                                  'Leave',
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                              ),
-                            ],
-                          ),
-                    );
-
-                    if (confirmed == true) {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.clear();
-                      Navigator.pushAndRemoveUntil(
+                  Divider(),
+                  // Privacy Settings
+                  ListTile(
+                    leading: Icon(Icons.privacy_tip),
+                    title: Text('Privacy Settings'),
+                    subtitle: Text('Control what you share'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => HouseholdSetupScreen(),
+                          builder: (_) => PrivacySettingsScreen(),
                         ),
-                        (route) => false,
                       );
-                    }
-                  },
-                ),
-              ],
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.location_on),
+                    title: Text('Location Settings'),
+                    subtitle: Text('Configure home/away detection'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showLocationSettings();
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.vpn_key),
+                    title: Text('Invite Code'),
+                    subtitle: FutureBuilder<String>(
+                      future: SharedPreferences.getInstance().then(
+                        (prefs) => prefs.getString('inviteCode') ?? 'N/A',
+                      ),
+                      builder:
+                          (context, snapshot) =>
+                              Text(snapshot.data ?? 'Loading...'),
+                    ),
+                    onTap: () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      final code = prefs.getString('inviteCode') ?? '';
+                      await Clipboard.setData(ClipboardData(text: code));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Invite code copied!')),
+                        );
+                      }
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.info_outline),
+                    title: Text('About Hush'),
+                    subtitle: Text('Privacy-first household coordination'),
+                    onTap: () => _showAboutDialog(),
+                  ),
+                  Divider(),
+                  ListTile(
+                    leading: Icon(Icons.exit_to_app, color: Colors.red),
+                    title: Text(
+                      'Leave Household',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    subtitle: Text('Reset and return to setup'),
+                    onTap: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder:
+                            (context) => AlertDialog(
+                              title: Text('Leave Household?'),
+                              content: Text(
+                                'This will clear all your data and return you to setup.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed:
+                                      () => Navigator.pop(context, false),
+                                  child: Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: Text(
+                                    'Leave',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            ),
+                      );
+
+                      if (confirmed == true) {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.clear();
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => HouseholdSetupScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
     );
